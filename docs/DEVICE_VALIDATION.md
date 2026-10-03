@@ -1,6 +1,6 @@
 # Device validation
 
-These observations came from exploratory tests supplied by the product owner. The app itself has not yet performed hardware control.
+These observations came from physical tests supplied by the product owner. The app has not yet performed hardware control.
 
 ## Proven
 
@@ -19,6 +19,15 @@ These observations came from exploratory tests supplied by the product owner. Th
 - Samsung power control.
 - Automatic foregrounding or launching of yes+.
 
+## Failed MyRemote physical test — 2026-10-03
+
+- Xiaomi TV Box S (3rd Gen) is `192.0.2.8`; the box itself reported `wlan0 = 192.0.2.8/24`. Windows ADB still reaches it.
+- The Android phone is `192.0.2.7`. MyRemote found no Xiaomi through `_androidtvremote2._tcp.` discovery.
+- Manual pairing to `192.0.2.8:6467` failed at TCP connect from `192.0.2.7` after 8 seconds with `EHOSTUNREACH (No route to host)`. TLS and the Polo pairing exchange were never reached.
+- Temporarily disabling Tailscale on the phone did not change the result. Android App Info displayed “No permissions required.”
+- Protocol review confirms that v2 normally advertises the command service on `_androidtvremote2._tcp.` with command port 6466, while pairing uses TCP 6467. The app uses the resolved command port and a separate pairing port. Its manifest declares `INTERNET`, `ACCESS_WIFI_STATE`, and `CHANGE_WIFI_MULTICAST_STATE`; it holds a Wi-Fi multicast lock during discovery. With `targetSdk = 36`, Android's current local-network guidance says `INTERNET` implicitly grants local-network access unless Android 16 local-network restrictions were explicitly opted in. App Info does not display normal install-time permissions, so its wording alone does not prove they are missing.
+- The app does not bind the process or socket to a network. The reported source address `192.0.2.7` is consistent with the phone's Wi-Fi path. The evidence does not yet distinguish phone-to-box reachability, a phone-specific local-network restriction, and TV Remote Service availability. An incorrect PIN hash was found separately in code review and fixed; it cannot cause the earlier TCP connect error.
+
 ## Known TV input map
 
 | Input | Device |
@@ -28,4 +37,4 @@ These observations came from exploratory tests supplied by the product owner. Th
 | HDMI_3 | Xiaomi |
 | HDMI_4 | PC |
 
-The Samsung soundbar normally remains on `D.IN`. No production adapter in this repository uses ADB. The next physical test is Xiaomi discovery, code pairing, Connected status, and one D-pad action.
+The Samsung soundbar normally remains on `D.IN`. No production adapter in this repository uses ADB. Physical Xiaomi discovery, pairing, Connected status, and one D-pad action remain to be validated after the TCP reachability failure is isolated.

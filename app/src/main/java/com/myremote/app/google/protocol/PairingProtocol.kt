@@ -61,7 +61,7 @@ internal object PairingProtocol {
             digest.update(unsigned(key.modulus))
             digest.update(unsigned(key.publicExponent))
         }
-        digest.update(pin, 2, 1)
+        digest.update(pin, 1, 2)
         return digest.digest().also {
             require(it[0] == pin[0]) { "Pairing code does not match the TV" }
         }

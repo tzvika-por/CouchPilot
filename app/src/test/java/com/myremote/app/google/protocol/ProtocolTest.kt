@@ -4,7 +4,7 @@ import com.myremote.app.domain.RemoteKey
 import java.io.ByteArrayInputStream
 import java.io.EOFException
 import java.io.InputStream
-import java.security.KeyPairGenerator
+import java.math.BigInteger
 import java.security.interfaces.RSAPublicKey
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
@@ -39,19 +39,23 @@ class ProtocolTest {
         assertEquals(PairingHandshake.Step.COMPLETE, handshake.step)
     }
 
-    @Test fun pairingSecretValidatesCodeAndUsesRsaKeys() {
-        val generator = KeyPairGenerator.getInstance("RSA").apply { initialize(1024) }
-        val client = generator.generateKeyPair().public as RSAPublicKey
-        val server = generator.generateKeyPair().public as RSAPublicKey
-        val suffix = "00AB"
-        val first = (0..255).first { candidate ->
-            val code = "%02X%s".format(candidate, suffix)
-            runCatching { PairingProtocol.secretHash(client, server, code) }.isSuccess
-        }
-        val hash = PairingProtocol.secretHash(client, server, "%02X%s".format(first, suffix))
-        assertEquals(first, hash[0].toInt() and 0xff)
-        assertEquals(32, hash.size)
+    @Test fun pairingSecretMatchesPoloSha256Vector() {
+        // Independent SHA-256 vector: 128 A5 bytes, 010001, 128 C3 bytes, 010001, 00AB.
+        val client = rsaPublicKey(0xA5)
+        val server = rsaPublicKey(0xC3)
+        val hash = PairingProtocol.secretHash(client, server, "9600AB")
+        assertEquals("9643fdfc48a4dedb4f71818d14b29b860705e7261a3352701770134a1839e727",
+            hash.joinToString("") { "%02x".format(it.toInt() and 0xff) })
+        assertThrows(IllegalArgumentException::class.java) { PairingProtocol.secretHash(client, server, "9700AB") }
         assertThrows(IllegalArgumentException::class.java) { PairingProtocol.secretHash(client, server, "invalid") }
+    }
+
+    private fun rsaPublicKey(modulusByte: Int): RSAPublicKey = object : RSAPublicKey {
+        override fun getModulus(): BigInteger = BigInteger(1, ByteArray(128) { modulusByte.toByte() })
+        override fun getPublicExponent(): BigInteger = BigInteger.valueOf(65537)
+        override fun getAlgorithm(): String = "RSA"
+        override fun getFormat(): String = "X.509"
+        override fun getEncoded(): ByteArray = byteArrayOf()
     }
 
     @Test fun mapsNavigationNumbersAndChannels() {

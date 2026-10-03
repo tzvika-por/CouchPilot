@@ -30,4 +30,4 @@ The instrumented Compose test can be compiled without a device using `./gradlew 
 - `docs/DEVICE_VALIDATION.md`: observed hardware facts and open questions.
 - `docs/GOOGLE_TV_PROTOCOL.md`: wire behavior, security model, and references.
 
-The app does not use ADB, developer mode, or Wireless Debugging. To set up Xiaomi, open **Set up Xiaomi**, select the discovered TV box or enter its host manually, then enter the six-character code shown on the TV. Pairing persists across app restarts. Both phone and TV box must be on the same local network. The first physical validation has not yet happened.
+The app does not use ADB, developer mode, or Wireless Debugging. To set up Xiaomi, open **Set up Xiaomi**, select the discovered TV box or enter its host manually, then enter the six-character code shown on the TV. Pairing persists across app restarts. The first physical test found no Xiaomi through discovery and manual pairing failed at TCP connect; see [device validation](docs/DEVICE_VALIDATION.md).
