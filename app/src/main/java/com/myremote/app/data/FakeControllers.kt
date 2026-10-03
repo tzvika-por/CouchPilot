@@ -23,9 +23,9 @@ class FakeStreamerController : StreamerController {
     val events = mutableListOf<Pair<RemoteKey, PressKind>>()
     val powerEvents = mutableListOf<String>()
 
-    override fun powerOn() { powerEvents += "on" }
-    override fun powerOff() { powerEvents += "off" }
-    override fun sendKey(key: RemoteKey, pressKind: PressKind) { events += key to pressKind }
+    override suspend fun powerOn() { powerEvents += "on" }
+    override suspend fun powerOff() { powerEvents += "off" }
+    override suspend fun sendKey(key: RemoteKey, pressKind: PressKind) { events += key to pressKind }
 }
 
 class FakeSoundbarController : SoundbarController {

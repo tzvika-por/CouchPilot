@@ -9,9 +9,9 @@ interface TvController {
 
 interface StreamerController {
     val connectionState: ConnectionState
-    fun powerOn()
-    fun powerOff()
-    fun sendKey(key: RemoteKey, pressKind: PressKind = PressKind.SHORT)
+    suspend fun powerOn()
+    suspend fun powerOff()
+    suspend fun sendKey(key: RemoteKey, pressKind: PressKind = PressKind.SHORT)
 }
 
 interface SoundbarController {

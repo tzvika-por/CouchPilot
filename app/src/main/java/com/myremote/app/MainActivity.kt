@@ -4,28 +4,36 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import com.myremote.app.data.FakeSoundbarController
-import com.myremote.app.data.FakeStreamerController
-import com.myremote.app.data.FakeTvController
-import com.myremote.app.domain.RemoteCoordinator
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.myremote.app.ui.GoogleTvSetupDialog
 import com.myremote.app.ui.RemoteScreen
 import com.myremote.app.ui.RemoteTheme
 
 class MainActivity : ComponentActivity() {
-    private val coordinator = RemoteCoordinator(
-        tv = FakeTvController(),
-        streamer = FakeStreamerController(),
-        soundbar = FakeSoundbarController(),
-    )
-    private var remoteState by mutableStateOf(coordinator.state)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val remote: RemoteViewModel = viewModel()
+            val state by remote.remoteState.collectAsStateWithLifecycle()
+            val devices by remote.discoveredDevices.collectAsStateWithLifecycle()
+            val connection by remote.streamerState.collectAsStateWithLifecycle()
+            val error by remote.streamerError.collectAsStateWithLifecycle()
+            val discoveryError by remote.discoveryError.collectAsStateWithLifecycle()
+            val setupVisible by remote.setupVisible.collectAsStateWithLifecycle()
             RemoteTheme {
-                RemoteScreen(state = remoteState, onAction = { remoteState = coordinator.dispatch(it) })
+                RemoteScreen(state = state, onAction = remote::dispatch, onConfigureXiaomi = remote::openSetup)
+                if (setupVisible) GoogleTvSetupDialog(
+                    devices = devices,
+                    connection = connection,
+                    error = error ?: discoveryError,
+                    onDismiss = remote::closeSetup,
+                    onDevice = remote::beginPairing,
+                    onManualHost = remote::beginManualPairing,
+                    onCode = remote::submitCode,
+                    onRetry = remote::retry,
+                    onForget = remote::forgetPairing,
+                )
             }
         }
     }

@@ -12,7 +12,7 @@ These observations came from exploratory tests supplied by the product owner. Th
 
 ## Not yet proven
 
-- A production Google TV remote-protocol implementation without ADB.
+- This app's Android TV Remote Service v2 discovery, pairing, connection, and key control on the physical Xiaomi. Code and automated protocol tests alone do not prove device interoperability.
 - Xiaomi power and wake behavior through that protocol.
 - LG power-on and power-off behavior in this app's own implementation.
 - Samsung Bluetooth control protocol details and how to implement them in this app.
@@ -28,4 +28,4 @@ These observations came from exploratory tests supplied by the product owner. Th
 | HDMI_3 | Xiaomi |
 | HDMI_4 | PC |
 
-The Samsung soundbar normally remains on `D.IN`. No production adapter in this repository uses ADB.
+The Samsung soundbar normally remains on `D.IN`. No production adapter in this repository uses ADB. The next physical test is Xiaomi discovery, code pairing, Connected status, and one D-pad action.

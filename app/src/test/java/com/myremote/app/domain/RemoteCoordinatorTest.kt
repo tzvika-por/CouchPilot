@@ -3,6 +3,7 @@ package com.myremote.app.domain
 import com.myremote.app.data.FakeSoundbarController
 import com.myremote.app.data.FakeStreamerController
 import com.myremote.app.data.FakeTvController
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -14,7 +15,7 @@ class RemoteCoordinatorTest {
     private val soundbar = FakeSoundbarController()
     private val remote = RemoteCoordinator(tv, streamer, soundbar)
 
-    @Test fun lastChannelSendsLongCenterThenShortCenter() {
+    @Test fun lastChannelSendsLongCenterThenShortCenter() = runBlocking {
         remote.dispatch(RemoteAction.LastChannel)
 
         assertEquals(
@@ -24,13 +25,13 @@ class RemoteCoordinatorTest {
         assertEquals(1, remote.state.actionCount)
     }
 
-    @Test fun lastChannelStopsWhenLongPressFails() {
+    @Test fun lastChannelStopsWhenLongPressFails() = runBlocking {
         val failingStreamer = object : StreamerController {
             override val connectionState = ConnectionState.CONNECTED
             var calls = 0
-            override fun powerOn() = Unit
-            override fun powerOff() = Unit
-            override fun sendKey(key: RemoteKey, pressKind: PressKind) {
+            override suspend fun powerOn() = Unit
+            override suspend fun powerOff() = Unit
+            override suspend fun sendKey(key: RemoteKey, pressKind: PressKind) {
                 calls++
                 error("Long press failed")
             }
@@ -44,7 +45,7 @@ class RemoteCoordinatorTest {
         assertEquals("Long press failed", remoteWithFailure.state.errorMessage)
     }
 
-    @Test fun watchYesSelectsXiaomiInputAndStreamer() {
+    @Test fun watchYesSelectsXiaomiInputAndStreamer() = runBlocking {
         val state = remote.dispatch(RemoteAction.WatchYesPlus)
 
         assertEquals(listOf("input:HDMI_3"), tv.events)
@@ -53,7 +54,7 @@ class RemoteCoordinatorTest {
         assertTrue(streamer.events.isEmpty())
     }
 
-    @Test fun otherInputsSelectTvForPowerWhileNavigationStillTargetsStreamer() {
+    @Test fun otherInputsSelectTvForPowerWhileNavigationStillTargetsStreamer() = runBlocking {
         remote.dispatch(RemoteAction.SelectInput(InputSource.PC))
         remote.dispatch(RemoteAction.Power)
         remote.dispatch(RemoteAction.Key(RemoteKey.HOME))
@@ -64,7 +65,7 @@ class RemoteCoordinatorTest {
         assertFalse(remote.state.tvPowerOn)
     }
 
-    @Test fun soundControlsAlwaysTargetSoundbar() {
+    @Test fun soundControlsAlwaysTargetSoundbar() = runBlocking {
         remote.dispatch(RemoteAction.VolumeDown)
         remote.dispatch(RemoteAction.Mute)
         remote.dispatch(RemoteAction.VolumeUp)
@@ -72,7 +73,7 @@ class RemoteCoordinatorTest {
         assertEquals(listOf("volume:down", "mute", "volume:up"), soundbar.events)
     }
 
-    @Test fun numericDigitsAreValidatedAndMapped() {
+    @Test fun numericDigitsAreValidatedAndMapped() = runBlocking {
         remote.dispatch(RemoteAction.NumericKey(1))
         remote.dispatch(RemoteAction.NumericKey(10))
 

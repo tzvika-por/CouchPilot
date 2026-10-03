@@ -1,6 +1,9 @@
 package com.myremote.app.domain
 
-enum class ConnectionState { CONNECTED, DISCONNECTED, SIMULATED }
+enum class ConnectionState {
+    NOT_CONFIGURED, DISCOVERING, PAIRING, WAITING_FOR_CODE,
+    CONNECTING, CONNECTED, DISCONNECTED, ERROR, SIMULATED,
+}
 
 enum class ActiveDevice { TV, STREAMER }
 
@@ -12,7 +15,7 @@ enum class InputSource(val webOsId: String) {
 }
 
 enum class RemoteKey {
-    UP, DOWN, LEFT, RIGHT, CENTER, BACK, HOME, PLAY_PAUSE,
+    UP, DOWN, LEFT, RIGHT, CENTER, BACK, HOME, PLAY_PAUSE, REWIND, FAST_FORWARD,
     CHANNEL_UP, CHANNEL_DOWN,
     DIGIT_0, DIGIT_1, DIGIT_2, DIGIT_3, DIGIT_4,
     DIGIT_5, DIGIT_6, DIGIT_7, DIGIT_8, DIGIT_9,

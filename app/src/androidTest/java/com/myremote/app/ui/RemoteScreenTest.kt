@@ -21,7 +21,7 @@ class RemoteScreenTest {
         listOf("power", "watch_yes", "source_ps5", "source_mac_mini", "source_xiaomi",
             "source_pc", "volume_down", "mute", "volume_up", "channel_down", "last_channel",
             "channel_up", "digit_0", "digit_9", "up", "down", "left", "right", "ok",
-            "back", "home", "play_pause").forEach { tag ->
+            "back", "home", "play_pause", "configure_xiaomi").forEach { tag ->
             composeRule.onNodeWithTag(tag).assertExists()
         }
         composeRule.onNodeWithTag("watch_yes").performClick()

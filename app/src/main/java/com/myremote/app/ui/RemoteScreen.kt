@@ -40,7 +40,7 @@ import com.myremote.app.domain.RemoteKey
 import com.myremote.app.domain.RemoteState
 
 @Composable
-fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit) {
+fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit, onConfigureXiaomi: () -> Unit = {}) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
@@ -59,7 +59,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary,
             )
-            StatusPanel(state)
+            StatusPanel(state, onConfigureXiaomi)
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RemoteButton(
@@ -136,7 +136,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit) {
 }
 
 @Composable
-private fun StatusPanel(state: RemoteState) {
+private fun StatusPanel(state: RemoteState, onConfigureXiaomi: () -> Unit) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             val active = if (state.activeDevice == ActiveDevice.TV) R.string.tv else R.string.streamer
@@ -147,6 +147,9 @@ private fun StatusPanel(state: RemoteState) {
             )
             StatusLine(R.string.tv, state.tvConnection)
             StatusLine(R.string.streamer, state.streamerConnection)
+            OutlinedButton(onClick = onConfigureXiaomi, modifier = Modifier.fillMaxWidth().testTag("configure_xiaomi")) {
+                Text(stringResource(R.string.configure_xiaomi))
+            }
             StatusLine(R.string.soundbar, state.soundbarConnection)
         }
     }
@@ -155,8 +158,14 @@ private fun StatusPanel(state: RemoteState) {
 @Composable
 private fun StatusLine(@StringRes deviceName: Int, connection: ConnectionState) {
     val connectionLabel = when (connection) {
+        ConnectionState.NOT_CONFIGURED -> R.string.not_configured
+        ConnectionState.DISCOVERING -> R.string.discovering
+        ConnectionState.PAIRING -> R.string.pairing
+        ConnectionState.WAITING_FOR_CODE -> R.string.waiting_for_code
+        ConnectionState.CONNECTING -> R.string.connecting
         ConnectionState.CONNECTED -> R.string.connected
         ConnectionState.DISCONNECTED -> R.string.disconnected
+        ConnectionState.ERROR -> R.string.connection_error
         ConnectionState.SIMULATED -> R.string.simulated
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

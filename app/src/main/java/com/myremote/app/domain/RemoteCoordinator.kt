@@ -1,11 +1,16 @@
 package com.myremote.app.domain
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
 /** Maps one UI intention to the correct device controller. Protocol details stay in adapters. */
 class RemoteCoordinator(
     private val tv: TvController,
     private val streamer: StreamerController,
     private val soundbar: SoundbarController,
 ) {
+    private val actionMutex = Mutex()
     var state = RemoteState(
         tvConnection = tv.connectionState,
         streamerConnection = streamer.connectionState,
@@ -13,17 +18,24 @@ class RemoteCoordinator(
     )
         private set
 
-    fun dispatch(action: RemoteAction): RemoteState {
-        try {
-            execute(action)
-            state = state.copy(actionCount = state.actionCount + 1, errorMessage = null)
-        } catch (error: Exception) {
-            state = state.copy(errorMessage = error.message ?: error.javaClass.simpleName)
-        }
+    fun updateStreamerConnection(connectionState: ConnectionState): RemoteState {
+        state = state.copy(streamerConnection = connectionState)
         return state
     }
 
-    private fun execute(action: RemoteAction) {
+    suspend fun dispatch(action: RemoteAction): RemoteState = actionMutex.withLock {
+        try {
+            execute(action)
+            state = state.copy(actionCount = state.actionCount + 1, errorMessage = null)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            state = state.copy(errorMessage = error.message ?: error.javaClass.simpleName)
+        }
+        state
+    }
+
+    private suspend fun execute(action: RemoteAction) {
         when (action) {
             RemoteAction.Power -> toggleActivePower()
             RemoteAction.WatchYesPlus -> selectInput(InputSource.XIAOMI)
@@ -50,7 +62,7 @@ class RemoteCoordinator(
         )
     }
 
-    private fun toggleActivePower() {
+    private suspend fun toggleActivePower() {
         when (state.activeDevice) {
             ActiveDevice.TV -> {
                 if (state.tvPowerOn) tv.powerOff() else tv.powerOn()
@@ -64,7 +76,7 @@ class RemoteCoordinator(
     }
 
     /** yes+ currently opens quick actions on long OK with Last Channel selected. */
-    private fun lastChannel() {
+    private suspend fun lastChannel() {
         streamer.sendKey(RemoteKey.CENTER, PressKind.LONG)
         streamer.sendKey(RemoteKey.CENTER, PressKind.SHORT)
     }

@@ -1,6 +1,6 @@
 # Architecture
 
-The app has one Android application module. `RemoteScreen` renders `RemoteState` and emits `RemoteAction`; it has no protocol calls. `RemoteCoordinator` routes each action to `TvController`, `StreamerController`, or `SoundbarController`. Each controller is an interface so the current in-memory adapters can be replaced independently with production implementations.
+The app has one Android application module. `RemoteScreen` renders `RemoteState` and emits `RemoteAction`; it has no protocol calls. `RemoteViewModel` owns the real Xiaomi controller and setup flow. `RemoteCoordinator` routes each action to `TvController`, `StreamerController`, or `SoundbarController`. LG and soundbar still use in-memory adapters; Xiaomi uses `GoogleTvStreamerController`.
 
 ## Action routing
 
@@ -15,8 +15,10 @@ The app has one Android application module. `RemoteScreen` renders `RemoteState`
 
 The first Watch yes+ action intentionally only selects HDMI 3. Waking Xiaomi or launching yes+ will be added after those production capabilities are validated. Selecting PS5, Mac mini, or PC makes the TV the active *controllable* device because this app has no controller for those sources. Xiaomi navigation remains available even while another input is selected.
 
-The initial fake power state is a simulator value, not a reading from hardware. Connection indicators explicitly say “Simulated.” Real adapters must report actual connection and power capabilities rather than inheriting fake values.
+The initial power state is a local toggle, not a reading from hardware. LG and soundbar connection indicators explicitly say “Simulated.” Xiaomi reports its transport state, but sleep/wake behavior remains unverified on physical hardware.
 
-## Next integration boundary
+## Google TV boundary
 
-Implement and validate a non-debug Google TV remote adapter for `StreamerController` first. It must support key presses and a true long press so the yes+ Last Channel macro works. Keep pairing, transport, retries, and credentials within the adapter or its supporting data layer. Add device tests only after a buildable foundation and a concise physical pairing request.
+`GoogleTvStreamerController` implements the suspendable `StreamerController` port. `NsdGoogleTvDiscovery` handles service discovery. `AndroidClientIdentity` creates and keeps the TLS client private key in Android Keystore. `PairingStore` keeps only the selected host, name, port, and server certificate pin. The protocol package handles pairing state, varint framing, key mapping, long press, and reconnect timing without Android UI dependencies. `RemoteCoordinator` retains the one-action yes+ Last Channel macro; the adapter expands a long press into START_LONG, hold, END_LONG before the coordinator sends short CENTER.
+
+The controller owns an IO coroutine scope and one active TLS socket. It answers configure/active/ping messages, reports Connected after RemoteStart, and reconnects with bounded exponential delay. Closing the ViewModel closes discovery, pairing, connection, and coroutine resources. Protocol unit tests run without hardware. See [GOOGLE_TV_PROTOCOL.md](GOOGLE_TV_PROTOCOL.md) for message and security details.
