@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">My Remote</string>
+    <string name="remote_title">My Remote</string>
+    <string name="demo_mode">Demo mode · no devices connected</string>
+    <string name="active_device">Active: %1$s</string>
+    <string name="tv">LG TV</string>
+    <string name="streamer">Xiaomi</string>
+    <string name="soundbar">Samsung M360</string>
+    <string name="simulated">Simulated</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="connected">Connected</string>
+    <string name="power">Power</string>
+    <string name="watch_yes">Watch yes+</string>
+    <string name="sources">Sources</string>
+    <string name="ps5">PS5</string>
+    <string name="mac_mini">Mac mini</string>
+    <string name="pc">PC</string>
+    <string name="sound">Sound</string>
+    <string name="volume_down">Volume down</string>
+    <string name="mute">Mute</string>
+    <string name="volume_up">Volume up</string>
+    <string name="channels">yes+ channels</string>
+    <string name="channel_down">Channel down</string>
+    <string name="last_channel">Last channel</string>
+    <string name="channel_up">Channel up</string>
+    <string name="navigation">Navigation</string>
+    <string name="up">Up</string>
+    <string name="down">Down</string>
+    <string name="left">Left</string>
+    <string name="right">Right</string>
+    <string name="ok">OK</string>
+    <string name="back">Back</string>
+    <string name="home">Home</string>
+    <string name="play_pause">Play / pause</string>
+    <string name="action_failed">Action failed: %1$s</string>
+</resources>

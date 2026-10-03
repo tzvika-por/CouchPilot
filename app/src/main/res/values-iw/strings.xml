@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">השלט שלי</string>
+    <string name="remote_title">השלט שלי</string>
+    <string name="demo_mode">מצב הדגמה · אין חיבור למכשירים</string>
+    <string name="active_device">מכשיר פעיל: %1$s</string>
+    <string name="tv">טלוויזיית LG</string>
+    <string name="streamer">שיאומי</string>
+    <string name="soundbar">סמסונג M360</string>
+    <string name="simulated">הדמיה</string>
+    <string name="disconnected">מנותק</string>
+    <string name="connected">מחובר</string>
+    <string name="power">הפעלה / כיבוי</string>
+    <string name="watch_yes">צפייה ב־yes+</string>
+    <string name="sources">מקורות</string>
+    <string name="ps5">PS5</string>
+    <string name="mac_mini">Mac mini</string>
+    <string name="pc">מחשב</string>
+    <string name="sound">שמע</string>
+    <string name="volume_down">הנמכת עוצמה</string>
+    <string name="mute">השתקה</string>
+    <string name="volume_up">הגברת עוצמה</string>
+    <string name="channels">ערוצי yes+</string>
+    <string name="channel_down">ערוץ קודם</string>
+    <string name="last_channel">ערוץ אחרון</string>
+    <string name="channel_up">ערוץ הבא</string>
+    <string name="navigation">ניווט</string>
+    <string name="up">למעלה</string>
+    <string name="down">למטה</string>
+    <string name="left">שמאלה</string>
+    <string name="right">ימינה</string>
+    <string name="ok">אישור</string>
+    <string name="back">חזרה</string>
+    <string name="home">בית</string>
+    <string name="play_pause">הפעלה / השהיה</string>
+    <string name="action_failed">הפעולה נכשלה: %1$s</string>
+</resources>
