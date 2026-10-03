@@ -1,6 +1,6 @@
 # Architecture
 
-The app has one Android application module. `RemoteScreen` renders `RemoteState` and emits `RemoteAction`; it has no protocol calls. `RemoteViewModel` owns the real Xiaomi controller and setup flow. `RemoteCoordinator` routes each action to `TvController`, `StreamerController`, or `SoundbarController`. LG and soundbar still use in-memory adapters; Xiaomi uses `GoogleTvStreamerController`.
+The app has one Android application module. `RemoteScreen` renders `RemoteState` and emits `RemoteAction`; it has no protocol calls. `RemoteViewModel` owns the LG and Xiaomi controllers and their setup flows. `RemoteCoordinator` routes each action to `TvController`, `StreamerController`, or `SoundbarController`. LG uses `LgTvController`, Xiaomi uses `GoogleTvStreamerController`, and the soundbar still uses an in-memory adapter. Fake TV, streamer, and soundbar controllers remain available to tests and previews.
 
 ## Action routing
 
@@ -15,7 +15,11 @@ The app has one Android application module. `RemoteScreen` renders `RemoteState`
 
 The first Watch yes+ action intentionally only selects HDMI 3. Waking Xiaomi or launching yes+ will be added after those production capabilities are validated. Selecting PS5, Mac mini, or PC makes the TV the active *controllable* device because this app has no controller for those sources. Xiaomi navigation remains available even while another input is selected.
 
-The initial power state is a local toggle, not a reading from hardware. LG and soundbar connection indicators explicitly say “Simulated.” Xiaomi reports its transport state, but sleep/wake behavior remains unverified on physical hardware.
+Power state is not read from hardware. When the LG connection is absent, its Power action takes the Wake-on-LAN path; when connected, it sends power off. LG and Xiaomi connection indicators report their transport states; the soundbar indicator says “Simulated.” LG and Xiaomi sleep/wake behavior remains unverified on physical hardware.
+
+## LG webOS boundary
+
+`SsdpLgDiscovery` runs a bounded M-SEARCH for the LG second-screen service, fetches same-host UPnP description metadata where available, and releases its socket and multicast lock on stop. The setup dialog shows discovered identity and supports manual host entry. `LgTvController` implements suspendable `TvController`, owns registration and connection state, and keeps one `LgSsapSession` at a time. `OkHttpLgTransportFactory` handles the pinned `wss://` connection; `LgRequests` correlates concurrent SSAP replies by ID. The controller requests the external input list after registration and switches by the TV's `HDMI_1`–`HDMI_4` IDs. `LgPairingStore` persists the host, identity, client key, certificate pin, and wake MAC configuration in app-private preferences with backup disabled. `LgInstallation` holds this household's known MACs outside reusable protocol code. Wake-on-LAN packet generation is separate from the controller. See [LG_WEBOS_PROTOCOL.md](LG_WEBOS_PROTOCOL.md).
 
 ## Google TV boundary
 

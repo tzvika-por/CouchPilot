@@ -13,9 +13,9 @@ class FakeTvController : TvController {
     override val connectionState = ConnectionState.SIMULATED
     val events = mutableListOf<String>()
 
-    override fun switchInput(source: InputSource) { events += "input:${source.webOsId}" }
-    override fun powerOn() { events += "power:on" }
-    override fun powerOff() { events += "power:off" }
+    override suspend fun switchInput(source: InputSource) { events += "input:${source.webOsId}" }
+    override suspend fun powerOn() { events += "power:on" }
+    override suspend fun powerOff() { events += "power:off" }
 }
 
 class FakeStreamerController : StreamerController {

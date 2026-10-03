@@ -54,7 +54,14 @@ class RemoteCoordinatorTest {
         assertTrue(streamer.events.isEmpty())
     }
 
+    @Test fun everySourceRoutesThroughTvControllerWithItsHdmiId() = runBlocking {
+        InputSource.entries.forEach { source -> remote.dispatch(RemoteAction.SelectInput(source)) }
+        assertEquals(listOf("input:HDMI_1", "input:HDMI_2", "input:HDMI_3", "input:HDMI_4"), tv.events)
+        assertEquals(InputSource.PC, remote.state.selectedInput)
+    }
+
     @Test fun otherInputsSelectTvForPowerWhileNavigationStillTargetsStreamer() = runBlocking {
+        remote.updateTvConnection(ConnectionState.CONNECTED)
         remote.dispatch(RemoteAction.SelectInput(InputSource.PC))
         remote.dispatch(RemoteAction.Power)
         remote.dispatch(RemoteAction.Key(RemoteKey.HOME))
@@ -63,6 +70,13 @@ class RemoteCoordinatorTest {
         assertEquals(listOf("input:HDMI_4", "power:off"), tv.events)
         assertEquals(listOf(RemoteKey.HOME to PressKind.SHORT), streamer.events)
         assertFalse(remote.state.tvPowerOn)
+    }
+
+    @Test fun disconnectedTvPowerActionUsesWakeOnLanPath() = runBlocking {
+        remote.updateTvConnection(ConnectionState.DISCONNECTED)
+        remote.dispatch(RemoteAction.Power)
+        assertEquals(listOf("power:on"), tv.events)
+        assertTrue(remote.state.tvPowerOn)
     }
 
     @Test fun soundControlsAlwaysTargetSoundbar() = runBlocking {

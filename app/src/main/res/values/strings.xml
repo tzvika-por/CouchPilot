@@ -1,7 +1,13 @@
 <resources>
     <string name="app_name">My Remote</string>
     <string name="remote_title">My Remote</string>
-    <string name="demo_mode">LG TV and soundbar controls are simulated</string>
+    <string name="demo_mode">Soundbar controls are simulated</string>
+    <string name="configure_lg">Set up LG TV</string>
+    <string name="lg_setup">LG TV connection</string>
+    <string name="lg_pairing_guidance">Choose the LG TV or enter its address. Accept the connection request shown on the TV.</string>
+    <string name="lg_approve_on_tv">Approve My Remote on the LG TV.</string>
+    <string name="lg_connected">LG TV connected</string>
+    <string name="lg_no_devices">No LG TV found. Enter its address manually.</string>
     <string name="configure_xiaomi">Set up Xiaomi</string>
     <string name="not_configured">Not configured</string>
     <string name="discovering">Discovering</string>

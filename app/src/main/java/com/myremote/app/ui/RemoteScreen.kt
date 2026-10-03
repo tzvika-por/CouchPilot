@@ -40,7 +40,8 @@ import com.myremote.app.domain.RemoteKey
 import com.myremote.app.domain.RemoteState
 
 @Composable
-fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit, onConfigureXiaomi: () -> Unit = {}) {
+fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
+    onConfigureXiaomi: () -> Unit = {}, onConfigureLg: () -> Unit = {}) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
@@ -59,7 +60,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit, onConfigu
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary,
             )
-            StatusPanel(state, onConfigureXiaomi)
+            StatusPanel(state, onConfigureXiaomi, onConfigureLg)
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RemoteButton(
@@ -136,7 +137,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit, onConfigu
 }
 
 @Composable
-private fun StatusPanel(state: RemoteState, onConfigureXiaomi: () -> Unit) {
+private fun StatusPanel(state: RemoteState, onConfigureXiaomi: () -> Unit, onConfigureLg: () -> Unit) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             val active = if (state.activeDevice == ActiveDevice.TV) R.string.tv else R.string.streamer
@@ -146,6 +147,9 @@ private fun StatusPanel(state: RemoteState, onConfigureXiaomi: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
             )
             StatusLine(R.string.tv, state.tvConnection)
+            OutlinedButton(onClick = onConfigureLg, modifier = Modifier.fillMaxWidth().testTag("configure_lg")) {
+                Text(stringResource(R.string.configure_lg))
+            }
             StatusLine(R.string.streamer, state.streamerConnection)
             OutlinedButton(onClick = onConfigureXiaomi, modifier = Modifier.fillMaxWidth().testTag("configure_xiaomi")) {
                 Text(stringResource(R.string.configure_xiaomi))

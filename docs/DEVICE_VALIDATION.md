@@ -16,7 +16,7 @@ These observations came from physical tests supplied by the product owner. The a
 
 - This app's Android TV Remote Service v2 discovery, pairing, connection, and key control on the physical Xiaomi. Code and automated protocol tests alone do not prove device interoperability.
 - Xiaomi power and wake behavior through that protocol.
-- LG power-on and power-off behavior in this app's own implementation.
+- MyRemote's LG registration, input switching, power off, and Wake-on-LAN power on against the physical LG. The previous Windows CLI result validates the TV and protocol path, not this adapter.
 - Samsung Bluetooth control protocol details and how to implement them in this app.
 - Samsung power control.
 - Automatic foregrounding or launching of yes+.
@@ -53,3 +53,10 @@ These observations came from physical tests supplied by the product owner. The a
 | HDMI_4 | PC |
 
 The Samsung soundbar normally remains on `D.IN`. No production adapter in this repository uses ADB. Physical Xiaomi discovery, pairing, Connected status, and one D-pad action remain to be validated after the TCP reachability failure is isolated.
+
+## LG Milestone 2 validation boundary — 2026-10-03
+
+- Proven before MyRemote: the LG 55UK6700YVD was reachable from Windows, accepted webOS pairing, returned its input list, and switched directly to HDMI 3 / Xiaomi.
+- Implemented in MyRemote, pending a physical test: SSDP discovery and manual host setup, prompt registration with a persisted client key, secure WebSocket with a persisted certificate pin, input enumeration and ID-based switching, `system/turnOff`, and Wake-on-LAN.
+- The known installation MAC addresses are wired `02:00:00:00:00:03` and Wi-Fi `02:00:00:00:00:01`. They are saved with the target device configuration; they are not general LG model constants. Whether this TV wakes from either interface remains unproven.
+- The first LG validation session should stop after registration, Connected status, and one HDMI 3 switch. Power-off and Wake-on-LAN should be tested only after that path is confirmed. No further Xiaomi test is part of this milestone.

@@ -23,6 +23,12 @@ class RemoteCoordinator(
         return state
     }
 
+    fun updateTvConnection(connectionState: ConnectionState): RemoteState {
+        state = state.copy(tvConnection = connectionState,
+            tvPowerOn = if (connectionState == ConnectionState.CONNECTED) true else state.tvPowerOn)
+        return state
+    }
+
     suspend fun dispatch(action: RemoteAction): RemoteState = actionMutex.withLock {
         try {
             execute(action)
@@ -54,7 +60,7 @@ class RemoteCoordinator(
         }
     }
 
-    private fun selectInput(source: InputSource) {
+    private suspend fun selectInput(source: InputSource) {
         tv.switchInput(source)
         state = state.copy(
             selectedInput = source,
@@ -65,8 +71,9 @@ class RemoteCoordinator(
     private suspend fun toggleActivePower() {
         when (state.activeDevice) {
             ActiveDevice.TV -> {
-                if (state.tvPowerOn) tv.powerOff() else tv.powerOn()
-                state = state.copy(tvPowerOn = !state.tvPowerOn)
+                val wake = state.tvConnection != ConnectionState.CONNECTED || !state.tvPowerOn
+                if (wake) tv.powerOn() else tv.powerOff()
+                state = state.copy(tvPowerOn = wake)
             }
             ActiveDevice.STREAMER -> {
                 if (state.streamerPowerOn) streamer.powerOff() else streamer.powerOn()

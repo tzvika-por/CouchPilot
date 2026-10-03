@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.myremote.app.ui.GoogleTvSetupDialog
+import com.myremote.app.ui.LgSetupDialog
 import com.myremote.app.ui.RemoteScreen
 import com.myremote.app.ui.RemoteTheme
 
@@ -21,8 +22,14 @@ class MainActivity : ComponentActivity() {
             val error by remote.streamerError.collectAsStateWithLifecycle()
             val discoveryError by remote.discoveryError.collectAsStateWithLifecycle()
             val setupVisible by remote.setupVisible.collectAsStateWithLifecycle()
+            val lgSetupVisible by remote.lgSetupVisible.collectAsStateWithLifecycle()
+            val lgDevices by remote.discoveredLgDevices.collectAsStateWithLifecycle()
+            val lgConnection by remote.tvState.collectAsStateWithLifecycle()
+            val lgError by remote.tvError.collectAsStateWithLifecycle()
+            val lgDiscoveryError by remote.lgDiscoveryError.collectAsStateWithLifecycle()
             RemoteTheme {
-                RemoteScreen(state = state, onAction = remote::dispatch, onConfigureXiaomi = remote::openSetup)
+                RemoteScreen(state = state, onAction = remote::dispatch,
+                    onConfigureXiaomi = remote::openSetup, onConfigureLg = remote::openLgSetup)
                 if (setupVisible) GoogleTvSetupDialog(
                     devices = devices,
                     connection = connection,
@@ -33,6 +40,16 @@ class MainActivity : ComponentActivity() {
                     onCode = remote::submitCode,
                     onRetry = remote::retry,
                     onForget = remote::forgetPairing,
+                )
+                if (lgSetupVisible) LgSetupDialog(
+                    devices = lgDevices,
+                    connection = lgConnection,
+                    error = lgError ?: lgDiscoveryError,
+                    onDismiss = remote::closeLgSetup,
+                    onDevice = remote::selectLg,
+                    onManualHost = remote::manualLg,
+                    onRetry = remote::retryLg,
+                    onForget = remote::forgetLg,
                 )
             }
         }

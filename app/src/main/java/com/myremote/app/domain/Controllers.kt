@@ -2,9 +2,9 @@ package com.myremote.app.domain
 
 interface TvController {
     val connectionState: ConnectionState
-    fun switchInput(source: InputSource)
-    fun powerOn()
-    fun powerOff()
+    suspend fun switchInput(source: InputSource)
+    suspend fun powerOn()
+    suspend fun powerOff()
 }
 
 interface StreamerController {

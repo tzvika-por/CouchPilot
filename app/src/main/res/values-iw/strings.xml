@@ -1,7 +1,13 @@
 <resources>
     <string name="app_name">השלט שלי</string>
     <string name="remote_title">השלט שלי</string>
-    <string name="demo_mode">השליטה בטלוויזיה ובמקרן הקול עדיין בהדמיה</string>
+    <string name="demo_mode">השליטה במקרן הקול עדיין בהדמיה</string>
+    <string name="configure_lg">הגדרת טלוויזיית LG</string>
+    <string name="lg_setup">חיבור לטלוויזיית LG</string>
+    <string name="lg_pairing_guidance">בחרו את טלוויזיית LG או הזינו את כתובתה. אשרו את בקשת החיבור שמופיעה בטלוויזיה.</string>
+    <string name="lg_approve_on_tv">יש לאשר את השלט שלי בטלוויזיית LG.</string>
+    <string name="lg_connected">טלוויזיית LG מחוברת</string>
+    <string name="lg_no_devices">לא נמצאה טלוויזיית LG. אפשר להזין את כתובתה ידנית.</string>
     <string name="configure_xiaomi">הגדרת שיאומי</string>
     <string name="not_configured">לא הוגדר</string>
     <string name="discovering">מחפש מכשירים</string>
