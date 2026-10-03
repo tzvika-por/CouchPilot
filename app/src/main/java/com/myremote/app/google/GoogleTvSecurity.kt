@@ -18,19 +18,27 @@ import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
 
-/** Only host and public certificate pin are in preferences. Private key never leaves Android Keystore. */
+/** Only endpoint details and the public certificate pin are in preferences. Private key stays in Android Keystore. */
 internal class PairingStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("google_tv_pairing", Context.MODE_PRIVATE)
 
     fun saved(): SavedPairing? {
         val host = prefs.getString("host", null) ?: return null
         val pin = prefs.getString("pin", null) ?: return null
-        return SavedPairing(GoogleTvDevice(prefs.getString("name", host) ?: host, host, prefs.getInt("port", 6466)), pin)
+        return SavedPairing(GoogleTvDevice(
+            prefs.getString("name", host) ?: host, host, prefs.getInt("port", 6466),
+            lastSuccessfulAddress = prefs.getString("last_address", null),
+        ), pin)
     }
 
-    fun save(device: GoogleTvDevice, pin: String) {
+    fun save(device: GoogleTvDevice, pin: String, connectedAddress: String) {
         check(prefs.edit().putString("host", device.host).putString("name", device.name)
-            .putInt("port", device.port).putString("pin", pin).commit()) { "Could not save pairing" }
+            .putInt("port", device.port).putString("pin", pin)
+            .putString("last_address", connectedAddress).commit()) { "Could not save pairing" }
+    }
+
+    fun rememberAddress(address: String) {
+        prefs.edit().putString("last_address", address).apply()
     }
 
     fun clear() { check(prefs.edit().clear().commit()) { "Could not clear pairing" } }
@@ -101,15 +109,28 @@ internal class AndroidClientIdentity {
 }
 
 internal interface GoogleTvSocketFactory {
-    fun open(host: String, port: Int, serverPin: String?): SSLSocket
+    fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket
 }
 
 internal class AndroidGoogleTvSocketFactory(private val identity: AndroidClientIdentity) : GoogleTvSocketFactory {
-    override fun open(host: String, port: Int, serverPin: String?): SSLSocket {
-        val socket = identity.context(serverPin).socketFactory.createSocket() as SSLSocket
+    override fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket {
+        val factory = identity.context(serverPin).socketFactory
+        val addresses = GoogleTvAddresses.candidates(
+            device.host, device.resolvedAddresses, device.lastSuccessfulAddress,
+        )
+        val socket = GoogleTvAddresses.firstConnected(addresses) { address ->
+            val candidate = factory.createSocket() as SSLSocket
+            try {
+                candidate.soTimeout = 15_000
+                candidate.connect(java.net.InetSocketAddress(address, port), 8_000)
+                candidate
+            } catch (error: Exception) {
+                candidate.close()
+                throw error
+            }
+        }
         try {
-            socket.soTimeout = 15_000
-            socket.connect(java.net.InetSocketAddress(host, port), 8_000)
+            // A certificate or handshake failure is not evidence that another address is safe.
             socket.startHandshake()
             return socket
         } catch (error: Exception) {

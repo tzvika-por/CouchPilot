@@ -2,7 +2,9 @@
 
 ## Discovery and connection
 
-Android `NsdManager` discovers `_androidtvremote2._tcp.` services. Resolved entries show service name and IP address; users may instead enter a host or IP. A Wi-Fi multicast lock is held only while the setup dialog discovers devices. The resolved service port is used for commands (normally 6466); pairing uses 6467. Discovery stops on dialog close or device selection.
+Android `NsdManager` discovers `_androidtvremote2._tcp.` services. Resolved entries retain the service name, all available IPv4/IPv6 addresses on Android 14+, and the advertised hostname on Android 16+; older releases provide the one address exposed by the legacy NSD API. Users may instead enter a DNS hostname, IPv4 address, or IPv6 literal. A Wi-Fi multicast lock is held only while the setup dialog discovers devices. The resolved service port is used for commands (normally 6466); pairing uses 6467. Discovery stops on dialog close or device selection.
+
+Both pairing and command sockets try the last successful address, addresses supplied by NSD, and addresses resolved from the retained hostname, without assuming IPv4 is usable. Only TCP connect failures advance to another address. TLS starts after TCP selects an endpoint; a failed handshake or certificate pin check fails the connection instead of trying another address. Successful connections update the cached address while retaining the advertised hostname and command port for later DNS resolution and reconnects. This is code-level IPv6 readiness; pairing and commands over IPv6 have not yet been physically validated on the Xiaomi.
 
 The client opens a TLS command connection, responds to configure and active-feature negotiation, answers ping requests, and marks Connected only when RemoteStart arrives. The IO coroutine reconnects after a network failure with 1, 2, 4, 8, 16, then 30 second delays. A closed ViewModel closes its sockets and cancels work. Remote readiness and reconnection still need validation on the physical Xiaomi.
 

@@ -29,6 +29,7 @@ import androidx.compose.ui.window.Dialog
 import com.myremote.app.R
 import com.myremote.app.domain.ConnectionState
 import com.myremote.app.google.GoogleTvDevice
+import com.myremote.app.google.normalizedGoogleTvHost
 
 @Composable
 fun GoogleTvSetupDialog(
@@ -83,7 +84,7 @@ fun GoogleTvSetupDialog(
                     )
                     Button(
                         onClick = { onManualHost(host) },
-                        enabled = Regex("[A-Za-z0-9.:-]{1,253}").matches(host.trim()),
+                        enabled = normalizedGoogleTvHost(host) != null,
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.connect_host)) }
                 }

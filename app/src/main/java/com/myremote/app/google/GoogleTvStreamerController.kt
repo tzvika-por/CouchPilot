@@ -70,7 +70,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         _state.value = ConnectionState.PAIRING
         _error.value = null
         try {
-            val socket = sockets.open(device.host, device.pairingPort, null)
+            val socket = sockets.open(device, device.pairingPort, null)
             try {
                 currentCoroutineContext().ensureActive()
                 val handshake = PairingHandshake()
@@ -107,7 +107,8 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
             val reply = ProtoWire.readFrame(session.socket.inputStream) ?: error("TV closed pairing connection")
             session.handshake.accept(reply)
             check(session.handshake.step == PairingHandshake.Step.COMPLETE)
-            store.save(session.device, AndroidClientIdentity.certificatePin(serverCertificate))
+            store.save(session.device, AndroidClientIdentity.certificatePin(serverCertificate),
+                requireNotNull(session.socket.inetAddress.hostAddress))
             pairing = null
             session.socket.close()
             connectStored()
@@ -124,12 +125,16 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         disconnect()
         connectionJob = scope.launch {
             var failures = 0
+            var device = saved.device
             while (isActive) {
                 _state.value = ConnectionState.CONNECTING
                 var socket: SSLSocket? = null
                 try {
-                    socket = sockets.open(saved.device.host, saved.device.port, saved.serverPin)
+                    socket = sockets.open(device, device.port, saved.serverPin)
                     currentCoroutineContext().ensureActive()
+                    val address = requireNotNull(socket.inetAddress.hostAddress)
+                    store.rememberAddress(address)
+                    device = device.copy(lastSuccessfulAddress = address)
                     activeSocket = socket
                     runConnection(socket)
                     if (isActive) throw IllegalStateException("TV closed the connection")

@@ -8,6 +8,7 @@ import com.myremote.app.data.FakeTvController
 import com.myremote.app.domain.RemoteAction
 import com.myremote.app.domain.RemoteCoordinator
 import com.myremote.app.google.GoogleTvDevice
+import com.myremote.app.google.normalizedGoogleTvHost
 import com.myremote.app.google.GoogleTvStreamerController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,8 +58,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun beginManualPairing(host: String) {
-        val cleaned = host.trim()
-        if (!Regex("[A-Za-z0-9.:-]{1,253}").matches(cleaned)) return
+        val cleaned = normalizedGoogleTvHost(host) ?: return
         beginPairing(GoogleTvDevice(cleaned, cleaned))
     }
 

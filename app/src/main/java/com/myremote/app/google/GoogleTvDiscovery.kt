@@ -4,10 +4,18 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
+import android.os.Build
+import java.net.InetAddress
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-data class GoogleTvDevice(val name: String, val host: String, val port: Int = 6466) {
+data class GoogleTvDevice(
+    val name: String,
+    val host: String,
+    val port: Int = 6466,
+    val resolvedAddresses: List<InetAddress> = emptyList(),
+    val lastSuccessfulAddress: String? = null,
+) {
     val pairingPort: Int get() = 6467
 }
 
@@ -94,8 +102,19 @@ class NsdGoogleTvDiscovery(context: Context) : GoogleTvDiscovery {
         try { nsd.resolveService(info, object : NsdManager.ResolveListener {
             override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) = finish(null)
             override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                val host = serviceInfo.host?.hostAddress
-                finish(if (host == null) null else GoogleTvDevice(serviceInfo.serviceName, host, serviceInfo.port))
+                @Suppress("DEPRECATION")
+                val addresses = if (Build.VERSION.SDK_INT >= 34) serviceInfo.hostAddresses else
+                    listOfNotNull(serviceInfo.host)
+                @Suppress("DEPRECATION")
+                val host = if (Build.VERSION.SDK_INT >= 36) {
+                    serviceInfo.hostname?.trimEnd('.')?.let { name ->
+                        if (name.endsWith(".local", ignoreCase = true)) name else "$name.local"
+                    }
+                } else null
+                val endpoint = host ?: addresses.firstOrNull()?.hostAddress
+                finish(endpoint?.let {
+                    GoogleTvDevice(serviceInfo.serviceName, it, serviceInfo.port, addresses)
+                })
             }
             private fun finish(device: GoogleTvDevice?) {
                 synchronized(this@NsdGoogleTvDiscovery) {
