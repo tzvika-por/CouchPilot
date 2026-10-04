@@ -1,5 +1,7 @@
 package com.myremote.app.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,7 +52,7 @@ fun GoogleTvSetupDialog(
     onBluetooth: () -> Unit = {},
     bluetoothContent: @Composable () -> Unit = {},
 ) {
-    var host by remember { mutableStateOf("") }
+    var host by rememberSaveable { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = MaterialTheme.shapes.large) {

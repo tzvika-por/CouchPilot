@@ -1,5 +1,7 @@
 package com.myremote.app.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,8 +44,10 @@ fun LgSetupDialog(
     onRetry: () -> Unit,
     onForget: () -> Unit,
     onRefreshAuthorization: () -> Unit,
+    onWakeAddress: (String) -> Unit = {},
 ) {
-    var host by remember { mutableStateOf("") }
+    var host by rememberSaveable { mutableStateOf("") }
+    var wakeAddress by rememberSaveable { mutableStateOf("") }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = MaterialTheme.shapes.large) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -85,6 +89,21 @@ fun LgSetupDialog(
                         color = MaterialTheme.colorScheme.error)
                 } else {
                     error?.let { Text(failureText(null), color = MaterialTheme.colorScheme.error) }
+                }
+                if (connection == ConnectionState.CONNECTED) {
+                    Text(stringResource(R.string.wake_address_help))
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        OutlinedTextField(value = wakeAddress, onValueChange = { wakeAddress = it.take(17) },
+                            label = { Text(stringResource(R.string.wake_address)) }, singleLine = true,
+                            isError = wakeAddress.isNotEmpty() && !Regex("(?i)([0-9a-f]{2}[:-]){5}[0-9a-f]{2}").matches(wakeAddress),
+                            supportingText = { if (wakeAddress.isNotEmpty() && !Regex("(?i)([0-9a-f]{2}[:-]){5}[0-9a-f]{2}").matches(wakeAddress)) Text(stringResource(R.string.invalid_wake_address)) },
+                            modifier = Modifier.fillMaxWidth().testTag("lg_wake_address"))
+                    }
+                    OutlinedButton(onClick = { onWakeAddress(wakeAddress) },
+                        enabled = Regex("(?i)([0-9a-f]{2}[:-]){5}[0-9a-f]{2}").matches(wakeAddress),
+                        modifier = Modifier.fillMaxWidth().testTag("lg_save_wake_address")) {
+                        Text(stringResource(R.string.save_wake_address))
+                    }
                 }
                 OutlinedButton(onClick = onRefreshAuthorization,
                     enabled = connection != ConnectionState.PAIRING && connection != ConnectionState.CONNECTING,

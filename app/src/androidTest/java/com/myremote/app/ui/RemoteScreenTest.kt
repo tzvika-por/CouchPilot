@@ -16,22 +16,25 @@ import org.junit.Rule
 import org.junit.Test
 
 class RemoteScreenTest {
+    private fun contextForTest() = InstrumentationRegistry.getInstrumentation().targetContext
     @get:Rule val composeRule = createComposeRule()
 
     @Test fun requiredControlsExposeIndependentDevicePowerAndRemoveRedundantShortcut() {
         val actions = mutableListOf<RemoteAction>()
         composeRule.setContent {
-            RemoteTheme { RemoteScreen(RemoteState(), onAction = { actions.add(it) }) }
+            RemoteTheme { RemoteScreen(RemoteState(selectedInput = com.myremote.app.domain.InputSource.XIAOMI), onAction = { actions.add(it) }) }
         }
 
-        listOf("power", "xiaomi_off", "soundbar_power", "source_ps5", "source_mac_mini", "source_xiaomi",
+        listOf("power", "soundbar_power", "source_ps5", "source_mac_mini", "source_xiaomi",
             "source_pc", "volume_down", "mute", "volume_up", "channel_down", "last_channel",
             "channel_up", "digit_0", "digit_9", "up", "down", "left", "right", "ok",
             "back", "home", "play_pause", "rewind", "fast_forward", "configure_xiaomi", "configure_samsung").forEach { tag ->
             composeRule.onNodeWithTag(tag).assertExists()
         }
         composeRule.onNodeWithTag("watch_yes").assertDoesNotExist()
+        composeRule.onNodeWithTag("remote_settings").performClick()
         composeRule.onNodeWithTag("xiaomi_off").performScrollTo().performClick()
+        composeRule.onNodeWithText(contextForTest().getString(R.string.close)).performClick()
         composeRule.onNodeWithTag("soundbar_power").performScrollTo().performClick()
         assertEquals(listOf(RemoteAction.StreamerOff, RemoteAction.SoundbarPower), actions)
     }
@@ -45,10 +48,12 @@ class RemoteScreenTest {
                 RemoteTheme { RemoteScreen(state.value, onAction = { actions += it }) }
             }
         }
-        composeRule.onNodeWithText(context.getString(R.string.tv_power)).assertExists()
+        composeRule.onNodeWithTag("power").assertContentDescriptionEquals(context.getString(R.string.tv_power))
+        composeRule.onNodeWithTag("remote_settings").performClick()
         composeRule.onNodeWithTag("xiaomi_off").performScrollTo().performClick()
+        composeRule.onNodeWithText(contextForTest().getString(R.string.close)).performClick()
         composeRule.runOnIdle { state.value = state.value.copy(activeDevice = com.myremote.app.domain.ActiveDevice.STREAMER) }
-        composeRule.onNodeWithText(context.getString(R.string.streamer_power)).assertExists()
+        composeRule.onNodeWithTag("power").assertContentDescriptionEquals(context.getString(R.string.streamer_power))
         composeRule.onNodeWithTag("soundbar_power").performScrollTo().performClick()
         assertEquals(listOf(RemoteAction.StreamerOff, RemoteAction.SoundbarPower), actions)
     }
@@ -58,7 +63,7 @@ class RemoteScreenTest {
         composeRule.setContent {
             androidx.compose.runtime.CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
-                RemoteTheme { RemoteScreen(RemoteState(), onAction = { actions += it }) }
+                RemoteTheme { RemoteScreen(RemoteState(selectedInput = com.myremote.app.domain.InputSource.XIAOMI), onAction = { actions += it }) }
             }
         }
         composeRule.onNodeWithTag("left").performScrollTo().performClick()
@@ -69,7 +74,7 @@ class RemoteScreenTest {
             RemoteAction.Key(com.myremote.app.domain.RemoteKey.FAST_FORWARD)), actions)
     }
     @Test fun soundControlsAreAccessibleIconsAndMuteFollowsReportedState() {
-        val state = mutableStateOf(RemoteState())
+        val state = mutableStateOf(RemoteState(selectedInput = com.myremote.app.domain.InputSource.XIAOMI))
         val actions = mutableListOf<RemoteAction>()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         composeRule.setContent {
@@ -98,7 +103,7 @@ class RemoteScreenTest {
         val active = mutableStateOf(true)
         composeRule.setContent {
             RemoteTheme {
-                RemoteScreen(RemoteState(), onAction = { actions += it },
+                RemoteScreen(RemoteState(selectedInput = com.myremote.app.domain.InputSource.XIAOMI), onAction = { actions += it },
                     connectionSessionActive = active.value,
                     onConnectionSessionToggle = { disconnects++; active.value = !active.value })
             }

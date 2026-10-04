@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
                     onRetry = remote::retryLg,
                     onForget = remote::forgetLg,
                     onRefreshAuthorization = remote::refreshLgAuthorization,
+                    onWakeAddress = remote::configureLgWake,
                 )
             }
         }

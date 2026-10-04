@@ -20,7 +20,7 @@
         android:icon="@drawable/ic_remote"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MyRemote">
+        android:theme="@style/Theme.CouchPilot">
         <service
             android:name=".RemoteConnectionService"
             android:exported="false"

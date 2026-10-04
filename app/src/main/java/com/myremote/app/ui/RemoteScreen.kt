@@ -14,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.core.text.BidiFormatter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,13 +51,25 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
     onConfigureXiaomi: () -> Unit = {}, onConfigureLg: () -> Unit = {}, onConfigureSamsung: () -> Unit = {},
     connectionSessionActive: Boolean? = null, onConnectionSessionToggle: () -> Unit = {}) {
     val soundbarName = stringResource(R.string.soundbar)
-    var settingsVisible by remember { mutableStateOf(false) }
-    var helpVisible by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val feedback = failureText(state.failure)
+    LaunchedEffect(state.errorMessage) {
+        if (state.errorMessage != null) snackbar.showSnackbar(feedback)
+    }
+    var settingsVisible by rememberSaveable { mutableStateOf(false) }
+    var helpVisible by rememberSaveable { mutableStateOf(false) }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Header(state, { settingsVisible = true }, { helpVisible = true }, { onAction(RemoteAction.Power) })
-            DeviceCards(state, onConfigureLg, onConfigureXiaomi, onConfigureSamsung)
+            Header(state, { settingsVisible = true }, { onAction(RemoteAction.Power) })
+            DeviceCards(state, { settingsVisible = true }, { settingsVisible = true }, { settingsVisible = true })
+            if (state.errorMessage != null) {
+                Text(failureText(state.failure), color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("action_error").semantics { liveRegion = LiveRegionMode.Polite })
+            }
+            if (state.busyDevices.isNotEmpty()) Text(stringResource(R.string.sending_command),
+                color = MutedInk, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             if (connectionSessionActive == false) {
                 Text(stringResource(R.string.remote_paused_guidance), color = MutedInk, style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onConnectionSessionToggle, modifier = Modifier.testTag("resume_session")) {
@@ -62,20 +77,16 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                 }
             }
             Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SectionTitle(R.string.sources, Modifier.weight(1f))
-                    TextButton(onClick = { onAction(RemoteAction.StreamerOff) }, modifier = Modifier.testTag("xiaomi_off")) {
-                        RemoteGlyph(RemoteGlyph.POWER, MutedInk, Modifier.size(17.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.streamer_off), fontSize = 12.sp)
-                    }
-                }
+                SectionTitle(R.string.sources)
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        SourceButton(InputSource.PS5, R.string.ps5, RemoteGlyph.GAMEPAD, state, onAction, Modifier.weight(1f))
-                        SourceButton(InputSource.MAC_MINI, R.string.mac_mini, RemoteGlyph.LAPTOP, state, onAction, Modifier.weight(1f))
-                        SourceButton(InputSource.XIAOMI, R.string.device_xiaomi_short, RemoteGlyph.BOX, state, onAction, Modifier.weight(1f))
-                        SourceButton(InputSource.PC, R.string.pc, RemoteGlyph.PC, state, onAction, Modifier.weight(1f))
+                    val sources = listOf(Triple(InputSource.PS5, R.string.ps5, RemoteGlyph.GAMEPAD),
+                        Triple(InputSource.MAC_MINI, R.string.mac_mini, RemoteGlyph.LAPTOP),
+                        Triple(InputSource.XIAOMI, R.string.device_xiaomi_short, RemoteGlyph.BOX),
+                        Triple(InputSource.PC, R.string.pc, RemoteGlyph.PC))
+                    sources.chunked(if (LocalDensity.current.fontScale > 1.3f) 2 else 4).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            row.forEach { (source, label, glyph) -> SourceButton(source, label, glyph, state, onAction, Modifier.weight(1f)) }
+                        }
                     }
                 }
             }
@@ -103,46 +114,45 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                     }
                 }
             }
-            Panel {
-                SectionTitle(R.string.channels)
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RemoteTile(stringResource(R.string.last_channel), "last_channel", Modifier.weight(1f).heightIn(min = 72.dp), glyph = RemoteGlyph.BACK) { onAction(RemoteAction.LastChannel) }
-                        RemoteTile(stringResource(R.string.channel_down), "channel_down", Modifier.weight(1f).heightIn(min = 72.dp), glyph = RemoteGlyph.MINUS) { onAction(RemoteAction.ChannelDown) }
-                        RemoteTile(stringResource(R.string.channel_up), "channel_up", Modifier.weight(1f).heightIn(min = 72.dp), glyph = RemoteGlyph.PLUS) { onAction(RemoteAction.ChannelUp) }
+            if (state.selectedInput == InputSource.XIAOMI) {
+                Panel {
+                    SectionTitle(R.string.navigation)
+                    NavigationPad(onAction)
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            RemoteTile(stringResource(R.string.rewind), "rewind", Modifier.weight(1f).heightIn(min = 56.dp), glyph = RemoteGlyph.REWIND, iconOnly = true) { onAction(RemoteAction.Key(RemoteKey.REWIND)) }
+                            RemoteTile(stringResource(R.string.play_pause), "play_pause", Modifier.weight(1f).heightIn(min = 56.dp), glyph = RemoteGlyph.PLAY_PAUSE, iconOnly = true) { onAction(RemoteAction.Key(RemoteKey.PLAY_PAUSE)) }
+                            RemoteTile(stringResource(R.string.fast_forward), "fast_forward", Modifier.weight(1f).heightIn(min = 56.dp), glyph = RemoteGlyph.FORWARD, iconOnly = true) { onAction(RemoteAction.Key(RemoteKey.FAST_FORWARD)) }
+                        }
                     }
                 }
-            }
-            Panel {
-                SectionTitle(R.string.number_pad)
-                NumberPad(onAction)
-            }
-            Panel {
-                SectionTitle(R.string.navigation)
-                NavigationPad(onAction)
-            }
-            Panel {
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RemoteTile(stringResource(R.string.rewind), "rewind", Modifier.weight(1f).height(56.dp), glyph = RemoteGlyph.REWIND, iconOnly = true) { onAction(RemoteAction.Key(RemoteKey.REWIND)) }
-                        RemoteTile(stringResource(R.string.play_pause), "play_pause", Modifier.weight(1f).height(56.dp), glyph = RemoteGlyph.PLAY_PAUSE, iconOnly = true) { onAction(RemoteAction.Key(RemoteKey.PLAY_PAUSE)) }
-                        RemoteTile(stringResource(R.string.fast_forward), "fast_forward", Modifier.weight(1f).height(56.dp), glyph = RemoteGlyph.FORWARD, iconOnly = true) { onAction(RemoteAction.Key(RemoteKey.FAST_FORWARD)) }
+                Panel {
+                    SectionTitle(R.string.channels)
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            RemoteTile(stringResource(R.string.channel_down), "channel_down", Modifier.weight(1f).heightIn(min = 72.dp), glyph = RemoteGlyph.MINUS) { onAction(RemoteAction.ChannelDown) }
+                            RemoteTile(stringResource(R.string.last_channel), "last_channel", Modifier.weight(1f).heightIn(min = 72.dp), glyph = RemoteGlyph.BACK) { onAction(RemoteAction.LastChannel) }
+                            RemoteTile(stringResource(R.string.channel_up), "channel_up", Modifier.weight(1f).heightIn(min = 72.dp), glyph = RemoteGlyph.PLUS) { onAction(RemoteAction.ChannelUp) }
+                        }
                     }
+                    NumberPad(onAction)
                 }
-            }
-            state.errorMessage?.let {
-                Text(failureText(state.failure), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("action_error"))
             }
             Spacer(Modifier.height(8.dp))
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding())
         }
     }
     if (settingsVisible) AlertDialog(
         onDismissRequest = { settingsVisible = false }, title = { Text(stringResource(R.string.remote_settings)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { settingsVisible = false; onConfigureLg() }) { Text(stringResource(R.string.configure_lg)) }
                 TextButton(onClick = { settingsVisible = false; onConfigureXiaomi() }) { Text(stringResource(R.string.configure_xiaomi)) }
                 TextButton(onClick = { settingsVisible = false; onConfigureSamsung() }) { Text(stringResource(R.string.samsung_setup)) }
+                TextButton(onClick = { settingsVisible = false; helpVisible = true }) { Text(stringResource(R.string.remote_help)) }
+                TextButton(onClick = { onAction(RemoteAction.TvPower) }, modifier = Modifier.testTag("lg_power")) { Text(stringResource(R.string.tv_power)) }
+                TextButton(onClick = { onAction(RemoteAction.StreamerOff) }, modifier = Modifier.testTag("xiaomi_off")) { Text(stringResource(R.string.streamer_off)) }
                 connectionSessionActive?.let { active ->
                     HorizontalDivider()
                     Text(stringResource(if (active) R.string.remote_background_guidance else R.string.remote_paused_guidance), style = MaterialTheme.typography.bodySmall)
@@ -160,50 +170,42 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
 }
 
 @Composable
-private fun Header(state: RemoteState, onSettings: () -> Unit, onHelp: () -> Unit, onPower: () -> Unit) {
+private fun Header(state: RemoteState, onSettings: () -> Unit, onPower: () -> Unit) {
     val powerLabel = stringResource(if (state.activeDevice == ActiveDevice.TV) R.string.tv_power else R.string.streamer_power)
     val activeDescription = stringResource(R.string.active_device,
-        stringResource(if (state.activeDevice == ActiveDevice.TV) R.string.tv else R.string.streamer))
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        BidiFormatter.getInstance(LocalLayoutDirection.current == LayoutDirection.Rtl).unicodeWrap(stringResource(if (state.activeDevice == ActiveDevice.TV) R.string.tv else R.string.streamer)))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             RemoteTile(stringResource(R.string.remote_settings), "remote_settings", Modifier.size(48.dp), glyph = RemoteGlyph.SETTINGS, iconOnly = true, flat = true, onClick = onSettings)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stringResource(R.string.remote_title), fontSize = 23.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                Text(powerLabel, fontSize = 10.sp, color = MutedInk, textAlign = TextAlign.Center, modifier = Modifier.testTag("active_device").semantics { contentDescription = activeDescription })
+                Text(stringResource(R.string.remote_title), fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text(activeDescription, fontSize = 14.sp, color = MutedInk, textAlign = TextAlign.Center, modifier = Modifier.testTag("active_device").semantics { contentDescription = activeDescription })
             }
             RemoteTile(powerLabel, "power", Modifier.size(48.dp), glyph = RemoteGlyph.POWER, iconOnly = true, emphasized = true, onClick = onPower)
-            RemoteTile(stringResource(R.string.remote_help), "remote_help", Modifier.size(48.dp), glyph = RemoteGlyph.HELP, iconOnly = true, flat = true, onClick = onHelp)
         }
-    }
+
 }
 
 @Composable
 private fun DeviceCards(state: RemoteState, lg: () -> Unit, xiaomi: () -> Unit, samsung: () -> Unit) {
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            DeviceCard(R.string.device_lg_short, R.string.configure_lg, RemoteGlyph.TV, state.tvConnection, "configure_lg", Modifier.weight(1f), lg)
-            DeviceCard(R.string.device_xiaomi_short, R.string.configure_xiaomi, RemoteGlyph.BOX, state.streamerConnection, "configure_xiaomi", Modifier.weight(1f), xiaomi)
-            DeviceCard(R.string.device_samsung_short, R.string.samsung_setup, RemoteGlyph.SOUNDBAR, state.soundbarConnection, "configure_samsung", Modifier.weight(1f), samsung)
-        }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        DeviceCard(R.string.device_lg_short, state.tvConnection, "configure_lg", Modifier, lg)
+        DeviceCard(R.string.device_xiaomi_short, state.streamerConnection, "configure_xiaomi", Modifier, xiaomi)
+        DeviceCard(R.string.device_samsung_short, state.soundbarConnection, "configure_samsung", Modifier, samsung)
     }
 }
 
 @Composable
-private fun DeviceCard(@StringRes name: Int, @StringRes setup: Int, glyph: RemoteGlyph,
-    state: ConnectionState, tag: String, modifier: Modifier, onClick: () -> Unit) {
-    val description = stringResource(setup)
-    Row(modifier.heightIn(min = 76.dp).clip(TileShape).background(Color(0xFF16212F))
-        .clickable(role = Role.Button, onClick = onClick).testTag(tag).semantics(mergeDescendants = true) { contentDescription = description }
-        .padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        RemoteGlyph(glyph, MutedInk, Modifier.size(25.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(stringResource(name), color = Ink, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                StatusDot(state)
-                Text(stringResource(connectionLabel(state)), fontSize = 10.sp, lineHeight = 12.sp,
-                    color = MutedInk, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            }
-        }
+private fun DeviceCard(@StringRes name: Int, state: ConnectionState, tag: String, modifier: Modifier, onClick: () -> Unit) {
+    val label = stringResource(connectionLabel(state))
+    val nameLabel = BidiFormatter.getInstance(LocalLayoutDirection.current == LayoutDirection.Rtl).unicodeWrap(stringResource(name))
+    val description = "$nameLabel: $label"
+    Row(modifier.heightIn(min = 48.dp).clip(TileShape).background(Color(0xFF16212F))
+        .clickable(role = Role.Button, onClick = onClick).testTag(tag)
+        .semantics(mergeDescendants = true) { contentDescription = description; stateDescription = label; liveRegion = LiveRegionMode.Polite }
+        .padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        StatusDot(state)
+        Text(description, color = Ink, fontSize = 13.sp)
     }
 }
 
@@ -220,15 +222,15 @@ private fun StatusDot(state: ConnectionState) {
 
 @StringRes
 private fun connectionLabel(state: ConnectionState) = when (state) {
-    ConnectionState.NOT_CONFIGURED -> R.string.not_configured
+    ConnectionState.NOT_CONFIGURED -> R.string.needs_connection
     ConnectionState.DISCOVERING -> R.string.discovering
     ConnectionState.PAIRING -> R.string.pairing
-    ConnectionState.WAITING_FOR_CODE -> R.string.waiting_for_code
+    ConnectionState.WAITING_FOR_CODE -> R.string.connecting
     ConnectionState.CONNECTING -> R.string.connecting
     ConnectionState.CONNECTED -> R.string.connected
     ConnectionState.DISCONNECTED -> R.string.disconnected
     ConnectionState.ERROR -> R.string.connection_error
-    ConnectionState.AUTHORIZATION_REQUIRED -> R.string.lg_authorization_required
+    ConnectionState.AUTHORIZATION_REQUIRED -> R.string.needs_connection
     ConnectionState.SIMULATED -> R.string.simulated
 }
 
@@ -241,7 +243,7 @@ private fun Panel(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun SectionTitle(@StringRes title: Int, modifier: Modifier = Modifier) {
-    Text(stringResource(title), modifier.fillMaxWidth(), color = MutedInk, fontSize = 13.sp,
+    Text(BidiFormatter.getInstance(LocalLayoutDirection.current == LayoutDirection.Rtl).unicodeWrap(stringResource(title)), modifier.fillMaxWidth(), color = MutedInk, fontSize = 13.sp,
         fontWeight = FontWeight.Medium, textAlign = TextAlign.Start)
 }
 
@@ -271,8 +273,8 @@ private fun RemoteTile(label: String, tag: String, modifier: Modifier, glyph: Re
         if (icon != null) Icon(painterResource(icon), null, Modifier.size(29.dp), tint = tint)
         if (!iconOnly) {
             if (glyph != null || icon != null) Spacer(Modifier.height(4.dp))
-            Text(label, color = tint, fontSize = if (glyph == null && icon == null) 21.sp else 12.sp,
-                textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            Text(label, color = tint, fontSize = if (glyph == null && icon == null) 21.sp else 14.sp,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.clearAndSetSemantics { })
         }
         if (showSelection) {
@@ -301,9 +303,12 @@ private fun NumberPad(onAction: (RemoteAction) -> Unit) {
 private fun NavigationPad(onAction: (RemoteAction) -> Unit) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val padSize = (maxWidth * .56f).coerceIn(156.dp, 180.dp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RemoteTile(stringResource(R.string.home), "home", Modifier.weight(1f).heightIn(min = 84.dp), glyph = RemoteGlyph.HOME) { onAction(RemoteAction.Key(RemoteKey.HOME)) }
+            val padSize = (if (LocalDensity.current.fontScale > 1.3f) 224.dp else 192.dp).coerceAtMost(maxWidth)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RemoteTile(stringResource(R.string.home), "home", Modifier.weight(1f).heightIn(min = 56.dp), glyph = RemoteGlyph.HOME) { onAction(RemoteAction.Key(RemoteKey.HOME)) }
+                RemoteTile(stringResource(R.string.back), "back", Modifier.weight(1f).heightIn(min = 56.dp), glyph = RemoteGlyph.BACK) { onAction(RemoteAction.Key(RemoteKey.BACK)) }
+                }
                 Box(Modifier.size(padSize)) {
                     Canvas(Modifier.matchParentSize()) {
                         val inset = size.width * .28f
@@ -327,10 +332,10 @@ private fun NavigationPad(onAction: (RemoteAction) -> Unit) {
                         .background(Brush.verticalGradient(listOf(Color(0xFF283C52), Color(0xFF142334))))
                         .border(1.dp, Color(0xFF405571), CircleShape).clickable(role = Role.Button) { onAction(RemoteAction.Key(RemoteKey.CENTER)) }
                         .testTag("ok").semantics { contentDescription = ok }, contentAlignment = Alignment.Center) {
-                        Text("OK", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clearAndSetSemantics { })
+                        Text(ok, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clearAndSetSemantics { })
                     }
                 }
-                RemoteTile(stringResource(R.string.back), "back", Modifier.weight(1f).heightIn(min = 84.dp), glyph = RemoteGlyph.BACK) { onAction(RemoteAction.Key(RemoteKey.BACK)) }
+
             }
         }
     }

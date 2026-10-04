@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MyRemote"
+rootProject.name = "CouchPilot"
 include(":app")
