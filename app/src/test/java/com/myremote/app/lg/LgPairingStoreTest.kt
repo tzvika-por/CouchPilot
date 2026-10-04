@@ -10,25 +10,25 @@ class LgPairingStoreTest {
         val preferences = MemoryPreferences()
         val device = LgDevice("Living room", "192.0.2.8", "55UK6700YVD", "uuid:lg",
             listOf("02:00:00:00:00:03"))
-        LgPairingStore(preferences).apply {
+        LgPairingStore(preferences, testLgCipher()).apply {
             select(device)
             assertNull(read()?.clientKey)
             registered("client-key", "certificate-pin")
         }
-        val restored = LgPairingStore(preferences).read()!!
+        val restored = LgPairingStore(preferences, testLgCipher()).read()!!
         assertEquals(device, restored.device)
         assertEquals("client-key", restored.clientKey)
         assertEquals("certificate-pin", restored.certificatePin)
-        LgPairingStore(preferences).select(device.copy(host = "192.0.2.9"))
-        assertNull(LgPairingStore(preferences).read()?.clientKey)
-        LgPairingStore(preferences).clear()
-        assertNull(LgPairingStore(preferences).read())
+        LgPairingStore(preferences, testLgCipher()).select(device.copy(host = "192.0.2.9"))
+        assertNull(LgPairingStore(preferences, testLgCipher()).read()?.clientKey)
+        LgPairingStore(preferences, testLgCipher()).clear()
+        assertNull(LgPairingStore(preferences, testLgCipher()).read())
     }
 
     @Test fun authorizationResetKeepsDevicePinAndUnrelatedPreferences() {
         val prefs = MemoryPreferences()
         val device = LgInstallation.forSelectedDevice(LgDevice("LG", "192.0.2.8"))
-        val store = LgPairingStore(prefs)
+        val store = LgPairingStore(prefs, testLgCipher())
         store.select(device)
         store.registered("old-key", "trusted-pin")
         prefs.edit().putString("unrelated", "keep").commit()
@@ -44,13 +44,13 @@ class LgPairingStoreTest {
         assertEquals(false, org.json.JSONObject(LgProtocol.register("refresh", store.read()!!.clientKey))
             .getJSONObject("payload").has("client-key"))
         store.registered("new-key", "trusted-pin")
-        assertEquals("new-key", LgPairingStore(prefs).read()!!.clientKey)
-        assertEquals(false, LgPairingStore(prefs).read()!!.authorizationNeedsRefresh)
+        assertEquals("new-key", LgPairingStore(prefs, testLgCipher()).read()!!.clientKey)
+        assertEquals(false, LgPairingStore(prefs, testLgCipher()).read()!!.authorizationNeedsRefresh)
     }
 
     @Test fun grantRevisionDoesNotEraseKnownWorkingCredentials() {
         val prefs = MemoryPreferences()
-        val store = LgPairingStore(prefs)
+        val store = LgPairingStore(prefs, testLgCipher())
         store.select(LgDevice("LG", "192.0.2.8"))
         store.registered("old-key", "trusted-pin")
         prefs.edit().remove("authorization_revision").commit()
@@ -71,7 +71,7 @@ class LgPairingStoreTest {
             .putString("uuid", "UUID:" + targetUuid.uppercase()).putString("client_key", "saved-key")
             .putString("certificate_pin", "saved-pin").putInt("authorization_revision", 1)
             .putBoolean("authorization_refresh_required", true).putString("unrelated", "keep").commit()
-        val store = LgPairingStore(prefs)
+        val store = LgPairingStore(prefs, testLgCipher())
         assertEquals(targetMacs, store.read()!!.device.wakeMacs)
         assertEquals(targetMacs.joinToString(","), prefs.getString("wake_macs", null))
         assertEquals("saved-key", store.read()!!.clientKey)
@@ -79,12 +79,12 @@ class LgPairingStoreTest {
         assertEquals(true, store.read()!!.authorizationNeedsRefresh)
         assertEquals(1, prefs.getInt("authorization_revision", 0))
         assertEquals("keep", prefs.getString("unrelated", null))
-        assertEquals(targetMacs, LgPairingStore(prefs).read()!!.device.wakeMacs)
+        assertEquals(targetMacs, LgPairingStore(prefs, testLgCipher()).read()!!.device.wakeMacs)
     }
 
     @Test fun sameHostRediscoveryEnrichesManualSelectionWithoutPairingAgain() {
         val prefs = MemoryPreferences()
-        val store = LgPairingStore(prefs)
+        val store = LgPairingStore(prefs, testLgCipher())
         store.select(LgDevice("Manual LG", "192.0.2.8"))
         store.registered("saved-key", "saved-pin")
         store.selectOrUpdate(LgDevice("Living room", "192.0.2.8", "55UK6700YVD", "uuid:$targetUuid"))
@@ -96,7 +96,7 @@ class LgPairingStoreTest {
     }
 
     @Test fun sameUuidAddressChangePreservesPinGrantAndConfiguredMac() {
-        val store = LgPairingStore(MemoryPreferences())
+        val store = LgPairingStore(MemoryPreferences(), testLgCipher())
         val customMac = listOf("02:00:00:00:00:01")
         store.select(LgDevice("LG", "192.0.2.8", "55UK6700YVD", "uuid:$targetUuid", customMac))
         store.registered("saved-key", "saved-pin")
@@ -108,18 +108,24 @@ class LgPairingStoreTest {
         assertEquals("saved-pin", store.read()!!.certificatePin)
     }
 
-    @Test fun differentTvAtSameAddressDoesNotInheritWakeMacsOrCredentials() {
-        val store = LgPairingStore(MemoryPreferences())
+    @Test fun conflictingDiscoveryAtPinnedAddressRetainsTrustUntilExplicitForget() {
+        val store = LgPairingStore(MemoryPreferences(), testLgCipher())
         store.select(LgDevice("LG", "192.0.2.8", uuid=targetUuid))
         store.registered("saved-key", "saved-pin")
-        store.selectOrUpdate(LgDevice("Other", "192.0.2.8", "55UK6700YVD", "other-uuid"))
+        val replacement = LgDevice("Other", "192.0.2.8", "55UK6700YVD", "other-uuid")
+        org.junit.Assert.assertThrows(com.myremote.app.domain.DeviceFailure::class.java) { store.selectOrUpdate(replacement) }
+        assertEquals(targetMacs, store.read()!!.device.wakeMacs)
+        assertEquals("saved-key", store.read()!!.clientKey)
+        assertEquals("saved-pin", store.read()!!.certificatePin)
+        store.clear()
+        store.selectOrUpdate(replacement)
         assertEquals(emptyList<String>(), store.read()!!.device.wakeMacs)
         assertNull(store.read()!!.clientKey)
         assertNull(store.read()!!.certificatePin)
     }
 
     @Test fun missingIdentityCannotAttachHouseholdMacsByModelOrHostGuess() {
-        val store = LgPairingStore(MemoryPreferences())
+        val store = LgPairingStore(MemoryPreferences(), testLgCipher())
         store.select(LgDevice("LG", "192.0.2.4", "55UK6700YVD"))
         store.registered("saved-key", "saved-pin")
         assertEquals(emptyList<String>(), store.read()!!.device.wakeMacs)
@@ -129,7 +135,7 @@ class LgPairingStoreTest {
     }
 
     @Test fun authenticatedIdentityRequiresCurrentCertificateAndPreservesGrant() {
-        val store = LgPairingStore(MemoryPreferences())
+        val store = LgPairingStore(MemoryPreferences(), testLgCipher())
         store.select(LgDevice("LG", "lg.local"))
         store.registered("saved-key", "saved-pin")
         try { store.learnedIdentity(targetUuid, "different-pin"); org.junit.Assert.fail("Wrong TLS peer") }

@@ -22,7 +22,12 @@ import javax.security.auth.x500.X500Principal
 internal class PairingStore(private val prefs: android.content.SharedPreferences) {
     constructor(context: Context) : this(context.applicationContext.getSharedPreferences("google_tv_pairing", Context.MODE_PRIVATE))
 
-    fun saved(): SavedPairing? {
+    private var attempt = 0L
+    @Synchronized fun newPairingAttempt(): Long = ++attempt
+    @Synchronized fun cancelPairingAttempt() { attempt++ }
+    @Synchronized fun isCurrentAttempt(token: Long): Boolean = token == attempt
+
+    @Synchronized fun saved(): SavedPairing? {
         val host = prefs.getString("host", null) ?: return null
         val pin = prefs.getString("pin", null) ?: return null
         return SavedPairing(GoogleTvDevice(
@@ -33,18 +38,23 @@ internal class PairingStore(private val prefs: android.content.SharedPreferences
         ), pin)
     }
 
-    fun save(device: GoogleTvDevice, pin: String, connectedAddress: String) {
+    @Synchronized fun save(device: GoogleTvDevice, pin: String, connectedAddress: String, expectedAttempt: Long? = null) {
+        if (expectedAttempt != null && expectedAttempt != attempt)
+            throw kotlinx.coroutines.CancellationException("Pairing was cancelled")
         check(prefs.edit().putString("host", device.host).putString("name", device.name)
             .putInt("port", device.port).putString("pin", pin)
             .putString("addresses", device.resolvedAddresses.mapNotNull { it.hostAddress }.joinToString(","))
             .putString("last_address", connectedAddress).commit()) { "Could not save pairing" }
     }
 
-    fun rememberAddress(address: String) {
+    @Synchronized fun rememberAddress(address: String) {
         prefs.edit().putString("last_address", address).apply()
     }
 
-    fun clear() { check(prefs.edit().clear().commit()) { "Could not clear pairing" } }
+    @Synchronized fun clear() {
+        attempt++
+        check(prefs.edit().clear().commit()) { "Could not clear pairing" }
+    }
 }
 
 internal data class SavedPairing(val device: GoogleTvDevice, val serverPin: String)

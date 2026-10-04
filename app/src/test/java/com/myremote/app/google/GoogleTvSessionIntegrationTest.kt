@@ -59,7 +59,8 @@ class GoogleTvSessionIntegrationTest {
                 override suspend fun powerOff() = session.inject(223, false)
             }, FakeSoundbarController())
             val ready = CompletableDeferred<Unit>()
-            val reader = launch(Dispatchers.IO) { session.run({ ready.complete(Unit) }, { coordinator.updateStreamerPower(it) }) }
+            val readyCallbacks = java.util.concurrent.atomic.AtomicInteger()
+            val reader = launch(Dispatchers.IO) { session.run({ readyCallbacks.incrementAndGet(); ready.complete(Unit) }, { coordinator.updateStreamerPower(it) }) }
             try {
                 withTimeout(10_000) {
                     ready.await(); pong.await()
@@ -70,6 +71,7 @@ class GoogleTvSessionIntegrationTest {
                     assertNull(coordinator.dispatch(RemoteAction.Power).errorMessage) // WAKEUP, not SLEEP.
                     assertNull(coordinator.dispatch(RemoteAction.Power).errorMessage)
                     done.await(); reader.join()
+                    assertEquals(1, readyCallbacks.get())
                 }
             } finally { reader.cancelAndJoin() }
         }

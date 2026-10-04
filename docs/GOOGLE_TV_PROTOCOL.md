@@ -51,3 +51,9 @@ Current en0 mDNS: Xiaomi TV Box._androidtvremote2._tcp.local., SRV tv.local:6466
 ### Mac VPN comparison
 
 Fresh strictly interface-bound IPv4/IPv6 sockets reproduce Ethernet success and Wi-Fi failure both with Mac Tailscale Running and explicitly Stopped. Tailscale was restored to Running with unchanged configuration. No exit node or LAN-overriding VPN route was present. The active Mac VPN hypothesis is not supported by this comparison; selective Wi-Fi path restrictions remain an OPEN QUESTION. See DEVICE_VALIDATION.md for the exact controls and limits. Direct LAN control does not require a Tailscale client on Xiaomi, and no application code changed for this hypothesis.
+
+## Review hardening
+
+NSD work is capped at 64 service appearances per run and duplicate found callbacks are suppressed. Lost/reappeared records get fresh tokens. An outstanding legacy resolution retains its owner across discovery stop/start until the callback completes; stale results cannot reappear or release a newer owner's slot. Certificate rejection ends automatic connection retries while preserving the existing pin; transient broken streams still use backoff. Pairing persistence checks its generation atomically with save/Forget so late completion cannot restore cancelled configuration. Command-session readiness is published once rather than on every heartbeat. See [security review](SECURITY_REVIEW.md).
+
+Completed Google pairing launches also check their attempt token under the same controller lifecycle monitor as Forget/cancel. Connection publication and ready/power callbacks require an active owner; a cancelled session cannot reconnect or publish stale Connected state after Forget.

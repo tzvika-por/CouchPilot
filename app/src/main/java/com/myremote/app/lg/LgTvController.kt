@@ -106,10 +106,17 @@ class LgTvController internal constructor(
         connectionJob = scope.launch {
             withContext(NonCancellable) { previous?.join() }
             currentCoroutineContext().ensureActive()
-            if (selected != null) {
-                store.selectOrUpdate(selected)
+            try {
+                if (selected != null) store.selectOrUpdate(selected)
+                if (refreshAuthorization) store.clearAuthorization(requireRefresh = false)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _error.value = error.message ?: "Could not update LG configuration"
+                _state.value = ConnectionState.ERROR
+                RemoteDiagnostics.record("lg", "connection", "failed")
+                return@launch
             }
-            if (refreshAuthorization) store.clearAuthorization(requireRefresh = false)
             val saved = store.read() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return@launch }
             if (saved.authorizationNeedsRefresh) {
                 _state.value = ConnectionState.AUTHORIZATION_REQUIRED
@@ -149,7 +156,8 @@ class LgTvController internal constructor(
                     if (!isActive) break
                     RemoteDiagnostics.record("lg", "connection", "failed", (error as? LgAuthorizationException)?.errorCode)
                     terminalFailure = error is LgRegistrationException || error is LgAuthorizationException ||
-                        (error is DeviceFailure && error.kind == FailureKind.SECURITY)
+                        (error is DeviceFailure && error.kind == FailureKind.SECURITY) ||
+                        com.myremote.app.domain.isTlsIdentityFailure(error)
                     if (error is LgAuthorizationException) {
                         store.clearAuthorization()
                         _error.value = null
@@ -191,8 +199,7 @@ class LgTvController internal constructor(
     }
 
     override suspend fun switchInput(source: InputSource) {
-        val input = inputs.firstOrNull { it.id.equals(source.webOsId, ignoreCase = true) }
-            ?: throw DeviceFailure(FailureKind.UNAVAILABLE, "TV did not report this input")
+        val input = LgProtocol.matchingInput(source, inputs)
         try {
             controlRequest(LgProtocol.SWITCH_INPUT, JSONObject().put("inputId", input.id))
         } catch (denied: LgAuthorizationException) {

@@ -22,6 +22,7 @@ internal class GoogleTvCommandSession(private val socket: SSLSocket) {
     private val handshake = RemoteSessionHandshake()
 
     suspend fun run(onReady: () -> Unit, onPowerState: (Boolean) -> Unit = {}) {
+        var readyReported = false
         while (currentCoroutineContext().isActive && !socket.isClosed) {
             val payload = GoogleTvSocketIo.readFrame(socket) ?: return
             currentCoroutineContext().ensureActive()
@@ -30,7 +31,7 @@ internal class GoogleTvCommandSession(private val socket: SSLSocket) {
             handshake.accept(message)?.let { reply ->
                 writeMutex.withLock { withContext(Dispatchers.IO) { ProtoWire.writeFrame(socket.outputStream, reply) } }
             }
-            if (handshake.ready) onReady()
+            if (handshake.ready && !readyReported) { readyReported = true; onReady() }
         }
     }
 

@@ -6,6 +6,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GoogleTvPersistenceTest {
+    @Test fun latePairingCannotRestoreForgottenOrCancelledConfiguration() {
+        val store = PairingStore(LgPairingStoreTest.MemoryPreferences())
+        val device = GoogleTvDevice("TV", "192.0.2.8")
+        val old = store.newPairingAttempt()
+        store.clear()
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) { store.save(device, "old-pin", device.host, old) }
+        assertNull(store.saved())
+        val cancelled = store.newPairingAttempt()
+        store.cancelPairingAttempt()
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) { store.save(device, "old-pin", device.host, cancelled) }
+        val current = store.newPairingAttempt()
+        store.save(device, "new-pin", device.host, current)
+        assertEquals("new-pin", store.saved()!!.serverPin)
+        store.clear()
+        assertNull(store.saved())
+    }
+
     @Test fun ipv6AlternatesAndAdvertisedPortSurviveRestartEvenOnPreHostnameApi() {
         val prefs = LgPairingStoreTest.MemoryPreferences()
         val addresses = listOf(InetAddress.getByName("192.0.2.8"), InetAddress.getByName("2001:db8::8"))

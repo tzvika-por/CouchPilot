@@ -22,6 +22,18 @@ import org.junit.Test
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class LgAuthorizationTest {
+    @Test fun discoveryIdentityConflictCannotReconnectWithoutExistingPinOrRequestNewGrant() = runTest {
+        val fixture = fixture()
+        fixture.store.learnedIdentity("00000000-0000-4000-8000-000000000001", "trusted-pin")
+        fixture.controller.select(LgDevice("Impostor", "192.0.2.8", uuid = "different-uuid"))
+        runCurrent(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(ConnectionState.ERROR, fixture.controller.connectionState)
+        assertEquals("old-key", fixture.store.read()!!.clientKey)
+        assertEquals("trusted-pin", fixture.store.read()!!.certificatePin)
+        assertTrue(fixture.transports.isEmpty())
+        fixture.controller.close()
+    }
+
     @Test fun deniedInputRetainsWorkingGrantAndPowerControl() = runTest {
         val fixture = fixture(LgProtocol.SWITCH_INPUT)
         fixture.controller.connectStored()
@@ -95,7 +107,7 @@ class LgAuthorizationTest {
         fixture.controller.connectStored(); runCurrent()
         assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
         fixture.controller.close(); runCurrent()
-        val recreated = controller(LgPairingStore(fixture.preferences), fixture.factory)
+        val recreated = controller(LgPairingStore(fixture.preferences, testLgCipher()), fixture.factory)
         recreated.connectStored(); runCurrent()
         assertEquals(ConnectionState.CONNECTED, recreated.connectionState)
         val registrations = fixture.transports.map { transport ->
@@ -228,7 +240,7 @@ class LgAuthorizationTest {
 
     private fun TestScope.fixture(deniedUri: String? = null, pauseRegistration: Boolean = false, inputAppId: String? = null, helloUuid: String? = null, wakeAction: suspend (LgDevice) -> Unit = {}): Fixture {
         val prefs = LgPairingStoreTest.MemoryPreferences()
-        val store = LgPairingStore(prefs)
+        val store = LgPairingStore(prefs, testLgCipher())
         store.select(LgDevice("LG", "192.0.2.8", wakeMacs = listOf("02:00:00:00:00:03")))
         store.registered("old-key", "trusted-pin")
         val transports = mutableListOf<ScriptedTransport>()

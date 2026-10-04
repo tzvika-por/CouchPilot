@@ -60,20 +60,20 @@ class LgProtocolTest {
         assertEquals("new-client-key", session.register(null) { approvalPrompts++ })
         assertEquals(1, approvalPrompts)
         assertEquals("pin", session.certificatePin)
-        val inputs = LgProtocol.inputIds(session.request(LgProtocol.INPUT_LIST))
-        assertEquals("HDMI_3", LgProtocol.matchingInput(InputSource.XIAOMI, inputs))
+        val inputs = LgProtocol.inputs(session.request(LgProtocol.INPUT_LIST))
+        assertEquals("HDMI_3", LgProtocol.matchingInput(InputSource.XIAOMI, inputs).id)
         session.request(LgProtocol.SWITCH_INPUT, JSONObject().put("inputId", "HDMI_3"))
         assertTrue(transport.sent.any { JSONObject(it).optString("uri") == LgProtocol.SWITCH_INPUT })
         session.close()
     }
 
     @Test fun inputMappingUsesStableIdsAndRejectsMissingInput() {
-        val inputs = setOf("hdmi_1", "HDMI_2", "HDMI_3", "HDMI_4")
-        assertEquals("hdmi_1", LgProtocol.matchingInput(InputSource.PS5, inputs))
-        assertEquals("HDMI_2", LgProtocol.matchingInput(InputSource.MAC_MINI, inputs))
-        assertEquals("HDMI_3", LgProtocol.matchingInput(InputSource.XIAOMI, inputs))
-        assertEquals("HDMI_4", LgProtocol.matchingInput(InputSource.PC, inputs))
-        assertThrows(IOException::class.java) { LgProtocol.matchingInput(InputSource.PC, setOf("HDMI_1")) }
+        val inputs = listOf("hdmi_1", "HDMI_2", "HDMI_3", "HDMI_4").map { LgInput(it, null) }
+        assertEquals("hdmi_1", LgProtocol.matchingInput(InputSource.PS5, inputs).id)
+        assertEquals("HDMI_2", LgProtocol.matchingInput(InputSource.MAC_MINI, inputs).id)
+        assertEquals("HDMI_3", LgProtocol.matchingInput(InputSource.XIAOMI, inputs).id)
+        assertEquals("HDMI_4", LgProtocol.matchingInput(InputSource.PC, inputs).id)
+        assertThrows(IOException::class.java) { LgProtocol.matchingInput(InputSource.PC, listOf(LgInput("HDMI_1", null))) }
     }
 
     @Test fun errorsAndFalseReturnValueAreNotSuccessful() {

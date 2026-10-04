@@ -37,6 +37,8 @@ internal class OkHttpLgTransportFactory(private val lan: com.myremote.app.networ
         val builder = OkHttpClient.Builder()
             .sslSocketFactory(ssl.socketFactory, trust)
             .hostnameVerifier { _, _ -> true } // LG uses a self-signed LAN certificate; the pin is checked above.
+            .followRedirects(false)
+            .followSslRedirects(false)
             .connectTimeout(8, TimeUnit.SECONDS)
             .pingInterval(15, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -56,6 +58,10 @@ internal class OkHttpLgTransportFactory(private val lan: com.myremote.app.networ
                         incoming.close(IOException("LG response limit exceeded"))
                         webSocket.cancel()
                     }
+                }
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    incoming.close()
+                    webSocket.close(1000, null)
                 }
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     opened.completeExceptionally(IOException("LG WebSocket closed during connection"))

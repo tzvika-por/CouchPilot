@@ -6,3 +6,12 @@ local.properties
 *.iml
 .DS_Store
 captures/
+
+# Local signing keys and environment secrets must not be committed.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+.env
+.env.*

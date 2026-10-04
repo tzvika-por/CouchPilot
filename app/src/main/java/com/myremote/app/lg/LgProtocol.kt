@@ -4,8 +4,6 @@ import com.myremote.app.domain.InputSource
 import com.myremote.app.domain.DeviceFailure
 import com.myremote.app.domain.FailureKind
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import org.json.JSONArray
 import org.json.JSONObject
@@ -81,11 +79,9 @@ internal object LgProtocol {
         }
     }
 
-    fun inputIds(message: LgMessage): Set<String> = inputs(message).map { it.id }.toSet()
-
-    fun matchingInput(source: InputSource, available: Set<String>): String =
-        available.firstOrNull { it.equals(source.webOsId, ignoreCase = true) }
-            ?: throw IOException("${source.webOsId} was not reported by the TV")
+    fun matchingInput(source: InputSource, available: List<LgInput>): LgInput =
+        available.firstOrNull { it.id.equals(source.webOsId, ignoreCase = true) }
+            ?: throw DeviceFailure(FailureKind.UNAVAILABLE, "TV did not report this input")
 
     fun authorizationFailure(message: LgMessage): LgAuthorizationException? {
         if (message.type != "error" && message.payload?.optBoolean("returnValue", true) != false) return null
@@ -108,17 +104,18 @@ internal object LgProtocol {
 
 /** Correlates concurrent SSAP responses by ID; late replies cannot complete another request. */
 internal class LgRequests {
-    private val next = AtomicInteger(1)
-    private val pending = ConcurrentHashMap<String, CompletableDeferred<LgMessage>>()
+    private var next = 1L
+    private val pending = mutableMapOf<String, CompletableDeferred<LgMessage>>()
 
-    fun open(): Pair<String, CompletableDeferred<LgMessage>> {
-        val id = "myremote_${next.getAndIncrement()}"
+    @Synchronized fun open(): Pair<String, CompletableDeferred<LgMessage>> {
+        if (pending.size >= 32) throw IOException("Too many pending LG requests")
+        val id = "myremote_${next++}"
         val result = CompletableDeferred<LgMessage>()
         pending[id] = result
         return id to result
     }
 
-    fun complete(message: LgMessage): Boolean {
+    @Synchronized fun complete(message: LgMessage): Boolean {
         if (message.type != "response" && message.type != "error") return false
         val id = message.id ?: return false
         val result = pending.remove(id) ?: return false
@@ -126,10 +123,11 @@ internal class LgRequests {
         return true
     }
 
-    fun remove(id: String) { pending.remove(id)?.cancel() }
+    @Synchronized fun remove(id: String) { pending.remove(id)?.cancel() }
 
-    fun failAll(error: Throwable) {
-        pending.values.forEach { it.completeExceptionally(error) }
+    @Synchronized fun failAll(error: Throwable) {
+        val replies = pending.values.toList()
         pending.clear()
+        replies.forEach { it.completeExceptionally(error) }
     }
 }

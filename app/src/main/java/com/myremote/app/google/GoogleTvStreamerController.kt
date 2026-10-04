@@ -46,7 +46,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
     private var connectionJob: Job? = null
     @Volatile private var activeSocket: SSLSocket? = null
     private val pairingMutex = Mutex()
-    private var pairing: PairingSession? = null
+    @Volatile private var pairing: PairingSession? = null
     private val _powerState = MutableStateFlow<Boolean?>(null)
     val powerState: StateFlow<Boolean?> = _powerState
 
@@ -63,6 +63,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
     }
 
     suspend fun beginPairing(device: GoogleTvDevice) = withContext(Dispatchers.IO) { pairingMutex.withLock {
+        val attempt = store.newPairingAttempt()
         disconnect()
         stopDiscovery()
         pairing?.socket?.close()
@@ -81,7 +82,8 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
                     handshake.accept(reply)?.let { next -> ProtoWire.writeFrame(socket.outputStream, next) }
                 }
                 check(handshake.step == PairingHandshake.Step.CODE_REQUIRED)
-                pairing = PairingSession(device, socket, handshake)
+                if (!store.isCurrentAttempt(attempt)) throw CancellationException("Pairing was cancelled")
+                pairing = PairingSession(device, socket, handshake, attempt)
                 _state.value = ConnectionState.WAITING_FOR_CODE
             } catch (error: Exception) {
                 socket.close()
@@ -109,10 +111,10 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
             check(session.handshake.step == PairingHandshake.Step.COMPLETE)
             currentCoroutineContext().ensureActive()
             store.save(session.device, AndroidClientIdentity.certificatePin(serverCertificate),
-                requireNotNull(session.socket.inetAddress.hostAddress))
+                requireNotNull(session.socket.inetAddress.hostAddress), session.attempt)
             pairing = null
             session.socket.close()
-            connectStored()
+            connectStored(session.attempt)
         } catch (cancelled: CancellationException) {
             pairing = null
             session.socket.close()
@@ -125,34 +127,50 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         }
     } }
 
-    fun connectStored() {
+    @Synchronized fun connectStored(expectedAttempt: Long? = null) {
+        // Forget/cancel and a completed pairing must serialize the launch as well as the save.
+        if (expectedAttempt != null && !store.isCurrentAttempt(expectedAttempt)) return
         val saved = store.saved() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return }
         disconnect()
         connectionJob = scope.launch {
             var failures = 0
             var device = saved.device
             while (isActive) {
-                _state.value = ConnectionState.CONNECTING
+                synchronized(this@GoogleTvStreamerController) {
+                    if (!isActive) return@launch
+                    _state.value = ConnectionState.CONNECTING
+                }
                 var socket: SSLSocket? = null
                 try {
                     socket = sockets.open(device, device.port, saved.serverPin)
                     currentCoroutineContext().ensureActive()
                     val address = requireNotNull(socket.inetAddress.hostAddress)
-                    store.rememberAddress(address)
-                    device = device.copy(lastSuccessfulAddress = address)
-                    activeSocket = socket
+                    val ownerJob = currentCoroutineContext()[Job] ?: error("Connection has no owner")
+                    synchronized(this@GoogleTvStreamerController) {
+                        ownerJob.ensureActive()
+                        store.rememberAddress(address)
+                        device = device.copy(lastSuccessfulAddress = address)
+                        activeSocket = socket
+                    }
                     runConnection(socket) { failures = 0 }
                     if (isActive) throw IllegalStateException("TV closed the connection")
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
                     if (!isActive) break
-                    com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "connection", "failed")
-                    _error.value = error.message ?: "Connection failed"
-                    _state.value = ConnectionState.DISCONNECTED
+                    val identityFailure = com.myremote.app.domain.isTlsIdentityFailure(error)
+                    synchronized(this@GoogleTvStreamerController) {
+                        if (!isActive) return@launch
+                        com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "connection", "failed")
+                        _error.value = error.message ?: "Connection failed"
+                        _state.value = if (identityFailure) ConnectionState.ERROR else ConnectionState.DISCONNECTED
+                    }
+                    if (identityFailure) break
                 } finally {
                     socket?.close()
-                    if (activeSocket === socket) activeSocket = null
+                    synchronized(this@GoogleTvStreamerController) {
+                        if (activeSocket === socket) activeSocket = null
+                    }
                 }
                 failures++
                 delay(ReconnectPolicy.delayMillis(failures))
@@ -168,7 +186,8 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
 
     fun retry() = connectStored()
 
-    fun cancelPairing() {
+    @Synchronized fun cancelPairing() {
+        store.cancelPairingAttempt()
         pairing?.socket?.close()
         pairing = null
         if (_state.value == ConnectionState.WAITING_FOR_CODE || _state.value == ConnectionState.PAIRING) {
@@ -176,7 +195,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         }
     }
 
-    fun forgetPairing() {
+    @Synchronized fun forgetPairing() {
         disconnect()
         pairing?.socket?.close()
         pairing = null
@@ -187,16 +206,23 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
 
     private suspend fun runConnection(socket: SSLSocket, onReady: () -> Unit) {
         val session = GoogleTvCommandSession(socket)
-        commandSession = session
+        val owner = currentCoroutineContext()[Job] ?: error("Connection has no owner")
+        synchronized(this) { owner.ensureActive(); commandSession = session }
         try {
             session.run(onReady = {
-                if (_state.value != ConnectionState.CONNECTED)
-                    com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "connection", "connected")
-                onReady()
-                _error.value = null
-                _state.value = ConnectionState.CONNECTED
-            }, onPowerState = { _powerState.value = it })
-        } finally { if (commandSession === session) commandSession = null }
+                synchronized(this) {
+                    if (owner.isActive && commandSession === session) {
+                        if (_state.value != ConnectionState.CONNECTED)
+                            com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "connection", "connected")
+                        onReady()
+                        _error.value = null
+                        _state.value = ConnectionState.CONNECTED
+                    }
+                }
+            }, onPowerState = { on -> synchronized(this) {
+                if (owner.isActive && commandSession === session) _powerState.value = on
+            } })
+        } finally { synchronized(this) { if (commandSession === session) commandSession = null } }
     }
 
     override suspend fun sendKey(key: RemoteKey, pressKind: PressKind) {
@@ -212,7 +238,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         session.inject(code, long)
     }
 
-    private fun disconnect() {
+    @Synchronized private fun disconnect() {
         commandSession = null
         _powerState.value = null
         connectionJob?.cancel()
@@ -241,5 +267,5 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         scope.cancel()
     }
 
-    private data class PairingSession(val device: GoogleTvDevice, val socket: SSLSocket, val handshake: PairingHandshake)
+    private data class PairingSession(val device: GoogleTvDevice, val socket: SSLSocket, val handshake: PairingHandshake, val attempt: Long)
 }

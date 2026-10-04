@@ -10,6 +10,10 @@ enum class FailureKind { NOT_CONNECTED, PERMISSION_DENIED, NETWORK, SECURITY, UN
 
 open class DeviceFailure(val kind: FailureKind, message: String, cause: Throwable? = null) : IOException(message, cause)
 
+/** Certificate rejection is terminal; a generic broken TLS stream can still be transient. */
+internal fun isTlsIdentityFailure(error: Throwable): Boolean = generateSequence(error) { it.cause }
+    .any { it is java.security.cert.CertificateException || it is javax.net.ssl.SSLPeerUnverifiedException }
+
 fun failureKind(error: Throwable): FailureKind = when (error) {
     is DeviceFailure -> error.kind
     is SecurityException -> FailureKind.PERMISSION_DENIED

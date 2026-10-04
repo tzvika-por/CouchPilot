@@ -6,11 +6,12 @@ import android.util.Log
 object RemoteDiagnostics {
     data class Event(val device: String, val operation: String, val outcome: String, val code: Int?)
     private val history = ArrayDeque<Event>()
+    private val identifier = Regex("[A-Za-z_]{1,48}")
     private val devices = setOf("lg", "google", "samsung", "remote")
     @Synchronized fun record(device: String, operation: String, outcome: String, code: Int? = null) {
         require(device in devices)
-        require(Regex("[A-Za-z_]{1,48}").matches(operation))
-        require(Regex("[A-Za-z_]{1,48}").matches(outcome))
+        require(identifier.matches(operation))
+        require(identifier.matches(outcome))
         val event = Event(device, operation, outcome, code)
         if (history.size == 100) history.removeFirst()
         history.addLast(event)

@@ -1,21 +1,12 @@
 package com.myremote.app.lg
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import com.myremote.app.R
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.HttpURLConnection
 import java.net.InetAddress
-import java.net.URI
-import java.net.URL
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-import javax.xml.XMLConstants
-import javax.xml.parsers.DocumentBuilderFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,6 +15,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.ensureActive
 
 internal object LgSsdp {
     const val service = "urn:lge-com:service:webos-second-screen:1"
@@ -56,7 +49,7 @@ interface LgDiscovery {
 class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
     private val appContext = context.applicationContext
     private val wifi = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-    private val connectivity = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val lan = com.myremote.app.network.LanNetwork(appContext)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _devices = MutableStateFlow<List<LgDevice>>(emptyList())
     override val devices: StateFlow<List<LgDevice>> = _devices
@@ -66,6 +59,7 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
     private var socket: DatagramSocket? = null
     private var lock: WifiManager.MulticastLock? = null
     private var generation = 0
+    private var description: HttpURLConnection? = null
 
     @Suppress("DEPRECATION")
     @Synchronized override fun start() {
@@ -75,33 +69,42 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
         val runId = ++generation
         val ownedLock = wifi.createMulticastLock("MyRemoteLgDiscovery").apply {
             setReferenceCounted(false)
-            acquire()
         }
         lock = ownedLock
         job = scope.launch {
             var ownedSocket: DatagramSocket? = null
             try {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                synchronized(this@SsdpLgDiscovery) {
+                    if (generation != runId) return@launch
+                    ownedLock.acquire()
+                }
                 DatagramSocket().use { active ->
                     ownedSocket = active
-                    synchronized(this@SsdpLgDiscovery) { socket = active }
-                    connectivity.allNetworks.firstOrNull { network ->
-                        connectivity.getNetworkCapabilities(network)
-                            ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-                    }?.bindSocket(active)
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    synchronized(this@SsdpLgDiscovery) {
+                        if (generation != runId) return@launch
+                        socket = active
+                    }
+                    val network = lan.selected()
+                    network?.bindSocket(active)
                     active.soTimeout = 700
                     active.broadcast = true
                     val bytes = LgSsdp.search.toByteArray(Charsets.UTF_8)
                     val query = DatagramPacket(bytes, bytes.size,
                         InetAddress.getByName("239.255.255.250"), 1900)
                     active.send(query)
-                    val deadline = System.currentTimeMillis() + 4_000
-                    while (System.currentTimeMillis() < deadline && !active.isClosed) {
-                        val buffer = ByteArray(4096)
+                    val deadline = System.nanoTime() + 4_000_000_000L
+                    val seen = mutableSetOf<String>()
+                    val buffer = ByteArray(4096)
+                    while (System.nanoTime() < deadline && !active.isClosed && kotlinx.coroutines.currentCoroutineContext().isActive) {
                         val reply = DatagramPacket(buffer, buffer.size)
                         try { active.receive(reply) } catch (_: java.net.SocketTimeoutException) { continue }
                         val response = String(reply.data, 0, reply.length, Charsets.UTF_8)
                         val base = LgSsdp.candidate(response, reply.address) ?: continue
-                        val described = describe(base, LgSsdp.headers(response)["location"])
+                        if (!seen.add(base.host)) continue
+                        if (seen.size > 32) break
+                        val described = describe(base, LgSsdp.headers(response)["location"], network, runId, deadline)
                         synchronized(this@SsdpLgDiscovery) {
                             if (generation == runId) _devices.value = _devices.value.filterNot {
                                 (it.uuid != null && it.uuid == described.uuid) || it.host == described.host
@@ -120,7 +123,7 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
                     }
                     if (socket === ownedSocket) socket = null
                     if (lock === ownedLock) {
-                        ownedLock.release()
+                        if (ownedLock.isHeld) ownedLock.release()
                         lock = null
                     }
                 }
@@ -128,39 +131,26 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
         }
     }
 
-    private fun describe(base: LgDevice, location: String?): LgDevice {
-        if (location.isNullOrBlank()) return base
-        return runCatching {
-            val uri = URI(location)
-            if (uri.scheme !in listOf("http", "https") || uri.host != base.host) return base
-            val connection = URL(location).openConnection() as HttpURLConnection
-            connection.connectTimeout = 1_200
-            connection.readTimeout = 1_200
-            try {
-                connection.inputStream.use { stream ->
-                    val output = ByteArrayOutputStream()
-                    val chunk = ByteArray(4096)
-                    while (output.size() <= 65_536) {
-                        val count = stream.read(chunk)
-                        if (count < 0) break
-                        output.write(chunk, 0, count)
-                    }
-                    val bytes = output.toByteArray()
-                    if (bytes.size > 65_536) throw IOException("LG description too large")
-                    val factory = DocumentBuilderFactory.newInstance().apply {
-                        setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-                        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-                        setFeature("http://xml.org/sax/features/external-general-entities", false)
-                        setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-                    }
-                    val document = factory.newDocumentBuilder().parse(ByteArrayInputStream(bytes))
-                    fun value(tag: String): String? = document.getElementsByTagName(tag).item(0)
-                        ?.textContent?.trim()?.takeIf(String::isNotBlank)
-                    base.copy(name = value("friendlyName") ?: base.name,
-                        model = value("modelNumber") ?: value("modelName"), uuid = value("UDN") ?: base.uuid)
+    private fun describe(base: LgDevice, location: String?, network: android.net.Network?, runId: Int, deadline: Long): LgDevice {
+        val url = LgDescription.location(base, location) ?: return base
+        var connection: HttpURLConnection? = null
+        return try {
+            val active = (network?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
+            connection = active
+            synchronized(this) {
+                if (generation != runId) { active.disconnect(); return base }
+                description = active
+            }
+            LgDescription.read(base, active) {
+                synchronized(this) {
+                    if (generation == runId) (deadline - System.nanoTime()) / 1_000_000 else 0
                 }
-            } finally { connection.disconnect() }
-        }.getOrDefault(base)
+            }
+        } catch (_: Exception) { base }
+        finally {
+            connection?.disconnect()
+            synchronized(this) { if (description === connection) description = null }
+        }
     }
 
     @Synchronized override fun stop() {
@@ -169,7 +159,9 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
         job = null
         socket?.close()
         socket = null
-        lock?.release()
+        description?.disconnect()
+        description = null
+        lock?.takeIf { it.isHeld }?.release()
         lock = null
     }
 

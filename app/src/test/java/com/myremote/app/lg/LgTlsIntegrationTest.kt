@@ -60,6 +60,23 @@ class LgTlsIntegrationTest {
                 .any { it.message.orEmpty().contains("LG certificate changed") }) }
         }
     }
+    @Test fun wssRedirectIsRejectedWithoutContactingDestination() = runBlocking {
+        val certificate = HeldCertificate.Builder().commonName("TV simulator").build()
+        val tls = HandshakeCertificates.Builder().heldCertificate(certificate).build()
+        MockWebServer().use { first -> MockWebServer().use { destination ->
+            first.useHttps(tls.sslSocketFactory(), false)
+            destination.useHttps(tls.sslSocketFactory(), false)
+            first.start(); destination.start()
+            first.enqueue(MockResponse().setResponseCode(302).addHeader("Location", destination.url("/redirect")))
+            try {
+                OkHttpLgTransportFactory(port = first.port).connect("localhost", pin(certificate))
+                fail("Redirect must fail")
+            } catch (_: java.io.IOException) { }
+            assertEquals(1, first.requestCount)
+            assertEquals(0, destination.requestCount)
+        } }
+    }
+
     private fun pin(certificate: HeldCertificate): String = MessageDigest.getInstance("SHA-256")
         .digest(certificate.certificate.encoded).joinToString("") { "%02x".format(it.toInt() and 255) }
 }
