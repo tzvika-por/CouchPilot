@@ -34,7 +34,6 @@
     <string name="simulated">Simulated</string>
     <string name="disconnected">Disconnected</string>
     <string name="connected">Connected</string>
-    <string name="power">Power</string>
     <string name="sources">Sources</string>
     <string name="ps5">PS5</string>
     <string name="mac_mini">Mac mini</string>
@@ -77,9 +76,9 @@
     <string name="streamer_wifi">Wi-Fi</string>
     <string name="streamer_bluetooth">Bluetooth</string>
     <string name="bluetooth_remote_guidance">Bluetooth controls Xiaomi directly when Wi-Fi cannot connect. Pair once; later openings reuse the connection.</string>
-    <string name="bluetooth_host_note">While this remote is open, Android may disconnect a Bluetooth keyboard or mouse connected to your phone.</string>
+    <string name="bluetooth_host_note">While this remote is connected, Android may disconnect a Bluetooth keyboard or mouse connected to your phone.</string>
     <string name="bluetooth_remote_unsupported">This phone does not support Bluetooth remote control. Use Wi-Fi.</string>
-    <string name="bluetooth_tv_pair_steps">For first setup: on Xiaomi, open Settings → Remotes &amp; accessories → Pair accessory. Then tap Pair Xiaomi below and approve any pairing prompts on the phone and TV. You do not need to find the phone in the TV list. Keep My Remote open.</string>
+    <string name="bluetooth_tv_pair_steps">For first setup: on Xiaomi, open Settings → Remotes &amp; accessories → Pair accessory. Then tap Pair Xiaomi below and approve any pairing prompts on the phone and TV. You do not need to find the phone in the TV list. After pairing, you can use other apps.</string>
     <string name="bluetooth_pair_xiaomi">Pair Xiaomi</string>
     <string name="bluetooth_pairing_started">Waiting for pairing approval…</string>
     <string name="bluetooth_remote_unavailable">Bluetooth remote is unavailable. Check Bluetooth is on, or use Wi-Fi.</string>
@@ -89,4 +88,11 @@
     <string name="streamer_off">Xiaomi off</string>
     <string name="soundbar_power">Soundbar power</string>
     <string name="samsung_power_guidance">Soundbar power sends one toggle while connected. It does not guarantee wake from standby. After using it, automatic reconnection pauses; Retry resumes connection without sending another toggle.</string>
+    <string name="remote_connection_channel">Remote connection</string>
+    <string name="remote_connection_title">My Remote is available</string>
+    <string name="remote_connection_text">Device connections stay active while you use other apps.</string>
+    <string name="disconnect_remote">Disconnect remote</string>
+    <string name="connect_remote">Connect remote</string>
+    <string name="remote_background_guidance">You can use other apps or lock your phone. The remote stays connected.</string>
+    <string name="remote_paused_guidance">Remote connections are paused. Your devices remain on.</string>
 </resources>

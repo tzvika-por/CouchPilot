@@ -34,7 +34,6 @@
     <string name="simulated">הדמיה</string>
     <string name="disconnected">מנותק</string>
     <string name="connected">מחובר</string>
-    <string name="power">הפעלה / כיבוי</string>
     <string name="sources">מקורות</string>
     <string name="ps5">PS5</string>
     <string name="mac_mini">Mac mini</string>
@@ -77,9 +76,9 @@
     <string name="streamer_wifi">Wi-Fi</string>
     <string name="streamer_bluetooth">Bluetooth</string>
     <string name="bluetooth_remote_guidance">Bluetooth מאפשר שליטה ישירה ב־Xiaomi כשאין חיבור דרך Wi-Fi. מבצעים צימוד פעם אחת, ובהמשך החיבור נשמר.</string>
-    <string name="bluetooth_host_note">כשהשלט פתוח, Android עשוי לנתק מקלדת או עכבר Bluetooth המחוברים לטלפון.</string>
+    <string name="bluetooth_host_note">כשהשלט מחובר, Android עשוי לנתק מקלדת או עכבר Bluetooth המחוברים לטלפון.</string>
     <string name="bluetooth_remote_unsupported">הטלפון אינו תומך בשליטה מרחוק דרך Bluetooth. יש להשתמש ב־Wi-Fi.</string>
-    <string name="bluetooth_tv_pair_steps">להגדרה ראשונית: ב־Xiaomi פתחו הגדרות ← שלטים ואביזרים ← צימוד אביזר. לאחר מכן לחצו למטה על צימוד ל־Xiaomi ואשרו בקשות צימוד בטלפון ובטלוויזיה. אין צורך למצוא את הטלפון ברשימה בטלוויזיה. השאירו את השלט פתוח.</string>
+    <string name="bluetooth_tv_pair_steps">להגדרה ראשונית: ב־Xiaomi פתחו הגדרות ← שלטים ואביזרים ← צימוד אביזר. לאחר מכן לחצו למטה על צימוד ל־Xiaomi ואשרו בקשות צימוד בטלפון ובטלוויזיה. אין צורך למצוא את הטלפון ברשימה בטלוויזיה. לאחר הצימוד אפשר להשתמש באפליקציות אחרות.</string>
     <string name="bluetooth_pair_xiaomi">צימוד ל־Xiaomi</string>
     <string name="bluetooth_pairing_started">ממתינים לאישור הצימוד…</string>
     <string name="bluetooth_remote_unavailable">שליטה דרך Bluetooth אינה זמינה. ודאו ש־Bluetooth מופעל, או השתמשו ב־Wi-Fi.</string>
@@ -89,4 +88,11 @@
     <string name="streamer_off">כיבוי שיאומי</string>
     <string name="soundbar_power">הפעלה / כיבוי מקרן קול</string>
     <string name="samsung_power_guidance">כפתור ההפעלה של מקרן הקול שולח החלפת מצב אחת כשהמכשיר מחובר. הפעלה ממצב המתנה אינה מובטחת. לאחר הלחיצה החיבור האוטומטי מושהה; ניסיון חוזר מחדש את החיבור בלי לשלוח החלפת מצב נוספת.</string>
+    <string name="remote_connection_channel">חיבור השלט</string>
+    <string name="remote_connection_title">השלט שלי זמין</string>
+    <string name="remote_connection_text">החיבורים למכשירים נשמרים בזמן שימוש באפליקציות אחרות.</string>
+    <string name="disconnect_remote">ניתוק השלט</string>
+    <string name="connect_remote">חיבור השלט</string>
+    <string name="remote_background_guidance">אפשר להשתמש באפליקציות אחרות או לנעול את הטלפון. השלט נשאר מחובר.</string>
+    <string name="remote_paused_guidance">חיבורי השלט מושהים. המכשירים נשארים דולקים.</string>
 </resources>

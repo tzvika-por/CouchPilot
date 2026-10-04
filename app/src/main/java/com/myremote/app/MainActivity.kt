@@ -7,10 +7,6 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.DisposableEffect
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.myremote.app.ui.SamsungSetupDialog
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,19 +19,24 @@ import com.myremote.app.ui.RemoteScreen
 import com.myremote.app.ui.RemoteTheme
 
 class MainActivity : ComponentActivity() {
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    override fun onStart() {
+        super.onStart()
+        RemoteConnectionService.start(this)
+        (application as RemoteApplication).remoteSession.onUiVisible()
+    }
+
+    override fun onStop() {
+        (application as RemoteApplication).remoteSession.onUiHidden()
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val remote: RemoteViewModel = viewModel()
-            val lifecycle = LocalLifecycleOwner.current.lifecycle
-            DisposableEffect(remote, lifecycle) {
-                val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_START) remote.startConnections()
-                    if (event == Lifecycle.Event.ON_STOP) remote.stopConnections()
-                }
-                lifecycle.addObserver(observer)
-                onDispose { lifecycle.removeObserver(observer); remote.stopConnections() }
-            }
+            val remote = viewModel<RemoteViewModel>().session
+            val sessionActive by remote.connectionSessionActive.collectAsStateWithLifecycle()
             val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
                 remote.refreshSoundbarDevices()
             }
@@ -66,8 +67,14 @@ class MainActivity : ComponentActivity() {
             val lgDiscoveryError by remote.lgDiscoveryError.collectAsStateWithLifecycle()
             RemoteTheme {
                 RemoteScreen(state = state, onAction = remote::dispatch,
-                    onConfigureXiaomi = remote::openSetup, onConfigureLg = remote::openLgSetup,
-                    onConfigureSamsung = remote::openSoundbarSetup)
+                    onConfigureXiaomi = { RemoteConnectionService.start(this); remote.openSetup() },
+                    onConfigureLg = { RemoteConnectionService.start(this); remote.openLgSetup() },
+                    onConfigureSamsung = { RemoteConnectionService.start(this); remote.openSoundbarSetup() },
+                    connectionSessionActive = sessionActive,
+                    onConnectionSessionToggle = {
+                        if (sessionActive) RemoteConnectionService.disconnect(this)
+                        else RemoteConnectionService.start(this)
+                    })
                 if (soundbarSetup) SamsungSetupDialog(
                     devices = soundbarDevices, connection = soundbarConnection, error = soundbarError,
                     hasPermission = hasBluetoothPermission,
@@ -75,7 +82,7 @@ class MainActivity : ComponentActivity() {
                         if (Build.VERSION.SDK_INT >= 31) bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
                         else remote.refreshSoundbarDevices()
                     },
-                    onDevice = remote::selectSoundbar, onRetry = remote::refreshSoundbarDevices,
+                    onDevice = remote::selectSoundbar, onRetry = remote::retrySoundbar,
                     onSettings = { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },
                     onForget = remote::forgetSoundbar, onDismiss = remote::closeSoundbarSetup,
                 )
@@ -116,6 +123,14 @@ class MainActivity : ComponentActivity() {
                     onForget = remote::forgetLg,
                     onRefreshAuthorization = remote::refreshLgAuthorization,
                 )
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val preferences = getSharedPreferences("notification_consent", MODE_PRIVATE)
+            if (!preferences.getBoolean("asked", false)) {
+                preferences.edit().putBoolean("asked", true).apply()
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }

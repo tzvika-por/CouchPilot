@@ -92,6 +92,23 @@ class RemoteScreenTest {
         assertEquals(listOf(RemoteAction.VolumeDown, RemoteAction.VolumeUp, RemoteAction.Mute, RemoteAction.Mute), actions)
     }
 
+    @Test fun explicitConnectionControlDoesNotSendDevicePowerOrInputActions() {
+        val actions = mutableListOf<RemoteAction>()
+        var disconnects = 0
+        val active = mutableStateOf(true)
+        composeRule.setContent {
+            RemoteTheme {
+                RemoteScreen(RemoteState(), onAction = { actions += it },
+                    connectionSessionActive = active.value,
+                    onConnectionSessionToggle = { disconnects++; active.value = !active.value })
+            }
+        }
+        composeRule.onNodeWithTag("connection_session").performScrollTo().performClick()
+        assertEquals(1, disconnects)
+        assertEquals(false, active.value)
+        assertEquals(emptyList<RemoteAction>(), actions)
+    }
+
     @Test fun protocolErrorIsNeverRenderedInMainRemote() {
         composeRule.setContent {
             RemoteTheme { RemoteScreen(RemoteState(errorMessage = "raw protocol error 401"), onAction = {}) }

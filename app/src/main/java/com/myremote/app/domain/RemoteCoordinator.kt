@@ -44,6 +44,11 @@ class RemoteCoordinator(
         return state
     }
 
+    fun reportFailure(error: Exception): RemoteState {
+        state = state.copy(errorMessage = error.message ?: error.javaClass.simpleName, failure = failureKind(error))
+        return state
+    }
+
     suspend fun dispatch(action: RemoteAction): RemoteState = actionMutex.withLock {
         try {
             execute(action)

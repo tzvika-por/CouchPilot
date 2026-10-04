@@ -45,7 +45,8 @@ import com.myremote.app.domain.RemoteState
 
 @Composable
 fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
-    onConfigureXiaomi: () -> Unit = {}, onConfigureLg: () -> Unit = {}, onConfigureSamsung: () -> Unit = {}) {
+    onConfigureXiaomi: () -> Unit = {}, onConfigureLg: () -> Unit = {}, onConfigureSamsung: () -> Unit = {},
+    connectionSessionActive: Boolean? = null, onConnectionSessionToggle: () -> Unit = {}) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
@@ -61,6 +62,12 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                 fontWeight = FontWeight.Bold,
             )
             StatusPanel(state, onConfigureXiaomi, onConfigureLg, onConfigureSamsung)
+            connectionSessionActive?.let { active ->
+                Text(stringResource(if (active) R.string.remote_background_guidance else R.string.remote_paused_guidance),
+                    style = MaterialTheme.typography.bodySmall)
+                RemoteButton(stringResource(if (active) R.string.disconnect_remote else R.string.connect_remote),
+                    "connection_session", Modifier.fillMaxWidth(), onClick = onConnectionSessionToggle)
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RemoteButton(

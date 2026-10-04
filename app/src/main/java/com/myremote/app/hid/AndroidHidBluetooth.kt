@@ -134,6 +134,7 @@ class AndroidHidBluetooth(private val context: Context) {
             override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
                 if (closed.get()) return
                 if (!registered) {
+                    com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "bluetooth_registration", "lost")
                     failure = FailureKind.UNAVAILABLE
                     registration.completeExceptionally(DeviceFailure(FailureKind.UNAVAILABLE, "Bluetooth remote registration was lost"))
                     eventsChannel.trySend(HidEvent.DISCONNECTED)
@@ -141,6 +142,7 @@ class AndroidHidBluetooth(private val context: Context) {
                 }
                 pluggedDevice?.takeUnless(::matches)?.let(::reject)
                 registration.complete(Unit)
+                com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "bluetooth_registration", "ready")
                 // First association is initiated explicitly by the phone, not TV inquiry filtering.
                 if (bonded) association.request()
             }
