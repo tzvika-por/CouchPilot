@@ -13,6 +13,7 @@ class StreamerRoute(
     private val selected: () -> StreamerConnection,
 ) : StreamerController {
     private val current get() = if (selected() == StreamerConnection.LAN) lan else bluetooth
+    override fun reconnectAfterWake() = current.reconnectAfterWake()
     override val connectionState get() = current.connectionState
     override suspend fun sendKey(key: RemoteKey, pressKind: PressKind) = current.sendKey(key, pressKind)
     override suspend fun powerOn() = current.powerOn()

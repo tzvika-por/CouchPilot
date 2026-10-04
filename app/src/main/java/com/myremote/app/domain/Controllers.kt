@@ -8,6 +8,8 @@ interface TvController {
 }
 
 interface StreamerController {
+    /** Nonblocking recovery of an existing grant/bond after external wake; never pairs or sends power. */
+    fun reconnectAfterWake() = Unit
     val connectionState: ConnectionState
     suspend fun powerOn()
     suspend fun powerOff()
@@ -15,6 +17,8 @@ interface StreamerController {
 }
 
 interface SoundbarController {
+    /** Nonblocking recovery after optical wake; never sends a power toggle or creates a bond. */
+    fun reconnectAfterWake() = Unit
     val connectionState: ConnectionState
     suspend fun togglePower()
     suspend fun volumeUp()

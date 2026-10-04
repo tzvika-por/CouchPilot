@@ -225,4 +225,81 @@ class HidControllerTest {
         assertEquals(52, transport.reports.size)
         controller.pause(); runCurrent()
     }
+
+    @Test fun externalWakeRestartsPausedBudgetWithoutReplacingProfilePairingOrSendingKeys() = runTest {
+        var opens = 0
+        val transport = Transport()
+        val controller = HidStreamerController(HidTransportFactory { opens++; transport }, backgroundScope, { host }, {})
+        controller.retry(); runCurrent(); advanceTimeBy(101_001); runCurrent()
+        assertEquals(3, transport.reconnects)
+        controller.reconnectAfterWake(); controller.reconnectAfterWake(); runCurrent()
+        assertEquals(4, transport.reconnects)
+        assertEquals(1, opens)
+        assertEquals(0, transport.pairingRequests)
+        assertTrue(transport.reports.isEmpty())
+        assertFalse(transport.closed)
+        advanceTimeBy(101_001); runCurrent()
+        assertEquals(7, transport.reconnects)
+        advanceTimeBy(240_000); runCurrent(); assertEquals(7, transport.reconnects)
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        controller.reconnectAfterWake(); runCurrent()
+        assertEquals(7, transport.reconnects)
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+    }
+
+    @Test fun externalWakeInterruptsBackoffWithoutWaitingForSetupOrUnregisteringHid() = runTest {
+        val transport = Transport()
+        val controller = HidStreamerController(HidTransportFactory { transport }, backgroundScope, { host }, {})
+        controller.retry(); runCurrent(); transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        transport.channel.send(HidEvent.DISCONNECTED); runCurrent()
+        advanceTimeBy(1_000); runCurrent()
+        controller.reconnectAfterWake(); runCurrent()
+        assertEquals(1, transport.reconnects)
+        assertFalse(transport.closed)
+        assertEquals(0, transport.pairingRequests)
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        advanceTimeBy(3_000); runCurrent(); assertEquals(1, transport.reconnects)
+    }
+
+    @Test fun automaticRecoveryOfSavedUnbondedHostNeverRequestsPairing() = runTest {
+        val transport = Transport(false)
+        var opens = 0
+        val controller = HidStreamerController(HidTransportFactory { opens++; transport }, backgroundScope, { host }, {})
+        controller.reconnectAfterWake(); runCurrent()
+        controller.reconnectAfterWake(); runCurrent(); advanceTimeBy(240_000); runCurrent()
+        assertEquals(1, opens)
+        assertEquals(0, transport.pairingRequests)
+        assertEquals(0, transport.reconnects)
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        controller.pause(); runCurrent(); assertTrue(transport.closed)
+    }
+
+    @Test fun disconnectCancelsPendingWakeRetriesAndUnconfiguredWakeDoesNothing() = runTest {
+        var saved: HidHost? = host
+        val transport = Transport()
+        var opens = 0
+        val controller = HidStreamerController(HidTransportFactory { opens++; transport }, backgroundScope, { saved }, { saved = it })
+        controller.reconnectAfterWake(); runCurrent(); advanceTimeBy(101_001); runCurrent()
+        controller.reconnectAfterWake(); runCurrent()
+        controller.pause(); runCurrent(); advanceTimeBy(240_000); runCurrent()
+        assertTrue(transport.closed)
+        assertEquals(4, transport.reconnects)
+        controller.forget(); controller.reconnectAfterWake(); runCurrent()
+        assertEquals(1, opens)
+        assertEquals(ConnectionState.NOT_CONFIGURED, controller.connectionState)
+    }
+
+    @Test fun wakeRecoveryUsesOnlyTheSelectedTransport() {
+        val lan = com.myremote.app.data.FakeStreamerController()
+        val bluetooth = com.myremote.app.data.FakeStreamerController()
+        var mode = StreamerConnection.BLUETOOTH
+        val route = StreamerRoute(lan, bluetooth) { mode }
+        route.reconnectAfterWake()
+        assertEquals(0, lan.wakeRecoveries); assertEquals(1, bluetooth.wakeRecoveries)
+        mode = StreamerConnection.LAN
+        route.reconnectAfterWake()
+        assertEquals(1, lan.wakeRecoveries); assertEquals(1, bluetooth.wakeRecoveries)
+    }
+
 }

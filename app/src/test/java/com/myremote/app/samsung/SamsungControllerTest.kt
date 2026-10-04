@@ -346,4 +346,110 @@ class SamsungControllerTest {
         assertTrue(transport.closed)
         controller.close()
     }
+
+    @Test fun tvWakeResumesPersistedOffConnectionWithoutPowerToggleAndDeduplicates() = runTest {
+        var suspended = true
+        val transports = mutableListOf<ScriptedSamsungTransport>()
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            ScriptedSamsungTransport().also { transports += it }
+        }, backgroundScope, { "bond" }, {}, { suspended }, { suspended = it })
+        controller.connectStored(); runCurrent(); assertTrue(transports.isEmpty())
+        controller.reconnectAfterWake(); controller.reconnectAfterWake(); runCurrent()
+        assertFalse(suspended)
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        assertEquals(1, transports.size)
+        assertEquals(0, transports.single().sent.count { it == "ff0b022001" })
+        controller.reconnectAfterWake(); runCurrent(); assertEquals(1, transports.size)
+        controller.volumeUp()
+        assertEquals(1, transports.single().sent.count { it == "ff0b037f0101" })
+        controller.close()
+    }
+
+    @Test fun externalWakeRetriesWhileOpticalServiceStartsThenRestoresControl() = runTest {
+        var calls = 0
+        val transport = ScriptedSamsungTransport()
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            if (++calls < 3) throw java.io.IOException("Optical startup")
+            transport
+        }, backgroundScope, { "bond" }, {})
+        controller.reconnectAfterWake(); runCurrent()
+        advanceTimeBy(2_999); runCurrent(); assertEquals(1, calls)
+        advanceTimeBy(1); runCurrent(); assertEquals(2, calls)
+        advanceTimeBy(6_000); runCurrent(); assertEquals(3, calls)
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        assertEquals(0, transport.sent.count { it == "ff0b022001" })
+        controller.close()
+    }
+
+    @Test fun exhaustedExternalWakeStopsAfterThreeAttemptsAndHonorsForegroundSuppression() = runTest {
+        var calls = 0
+        var suspended = true
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++; throw java.io.IOException("Still asleep")
+        }, backgroundScope, { "bond" }, {}, { suspended }, { suspended = it })
+        controller.reconnectAfterWake(); runCurrent(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(3, calls); assertTrue(suspended)
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        controller.connectStored(); advanceTimeBy(120_000); runCurrent(); assertEquals(3, calls)
+        controller.close()
+    }
+
+    @Test fun externalWakeHasDeadlineAndDisconnectCancelsFurtherAttempts() = runTest {
+        var calls = 0
+        var cancelled = 0
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++
+            try { kotlinx.coroutines.awaitCancellation() } finally { cancelled++ }
+        }, backgroundScope, { "bond" }, {})
+        controller.reconnectAfterWake(); runCurrent()
+        advanceTimeBy(15_001); runCurrent(); assertEquals(1, cancelled)
+        advanceTimeBy(3_000); runCurrent(); assertEquals(2, calls)
+        controller.disconnect(); runCurrent(); assertEquals(2, cancelled)
+        advanceTimeBy(120_000); runCurrent(); assertEquals(2, calls)
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        controller.close()
+    }
+
+    @Test fun missingBondStopsRecoveryAndUnconfiguredDeviceIsSkipped() = runTest {
+        var saved: String? = "bond"
+        var calls = 0
+        var suspended = true
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++; throw DeviceFailure(FailureKind.NOT_CONNECTED, "OS bond removed")
+        }, backgroundScope, { saved }, { saved = it }, { suspended }, { suspended = it })
+        controller.reconnectAfterWake(); runCurrent(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, calls); assertTrue(suspended)
+        assertEquals(FailureKind.NOT_CONNECTED, controller.error.value)
+        controller.forget(); controller.reconnectAfterWake(); runCurrent(); assertEquals(1, calls)
+        controller.close()
+    }
+
+    @Test fun soundbarOffAfterAutomaticRecoveryDoesNotResumeOrReplayToggle() = runTest {
+        var suspended = true
+        var calls = 0
+        val transport = ScriptedSamsungTransport()
+        val controller = SamsungSoundbarController(SamsungTransportFactory { calls++; transport },
+            backgroundScope, { "bond" }, {}, { suspended }, { suspended = it })
+        controller.reconnectAfterWake(); runCurrent()
+        controller.togglePower(); runCurrent()
+        assertTrue(suspended); assertTrue(transport.closed)
+        controller.connectStored(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, calls)
+        assertEquals(1, transport.sent.count { it == "ff0b022001" })
+        controller.close()
+    }
+
+
+    @Test fun automaticWakePermissionFailureStopsWithoutRetryOrClearingOffSuppression() = runTest {
+        var calls = 0
+        var suspended = true
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++; throw DeviceFailure(FailureKind.PERMISSION_DENIED, "Permission denied")
+        }, backgroundScope, { "bond" }, {}, { suspended }, { suspended = it })
+        controller.reconnectAfterWake(); runCurrent(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, calls); assertTrue(suspended)
+        assertEquals(FailureKind.PERMISSION_DENIED, controller.error.value)
+        controller.connectStored(); runCurrent(); assertEquals(1, calls)
+        controller.close()
+    }
 }

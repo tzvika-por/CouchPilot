@@ -44,25 +44,39 @@ class HidStreamerController internal constructor(
     val pairing = mutablePairing.asStateFlow()
     private val mutableBonded = MutableStateFlow(false)
     val bonded = mutableBonded.asStateFlow()
-    @Volatile private var pairRequest: Channel<Unit>? = null
+    private enum class Request { PAIR, RECONNECT }
+    @Volatile private var pairRequest: Channel<Request>? = null
     private var job: Job? = null
 
-    fun requestPairing() { pairRequest?.trySend(Unit) }
+    fun requestPairing() { pairRequest?.trySend(Request.PAIR) }
     private val generation = java.util.concurrent.atomic.AtomicLong()
     @Volatile private var transport: HidTransport? = null
     @Volatile private var session: HidSession? = null
 
+    override fun reconnectAfterWake() {
+        if (load() == null || connectionState in setOf(ConnectionState.CONNECTED,
+                ConnectionState.CONNECTING, ConnectionState.PAIRING)) return
+        if (job?.isActive == true) {
+            // Keep the registered HID profile. An automatic request may never create a bond.
+            if (transport?.bonded == true && mutableState.compareAndSet(
+                    ConnectionState.DISCONNECTED, ConnectionState.CONNECTING)) {
+                if (pairRequest?.trySend(Request.RECONNECT)?.isSuccess != true)
+                    mutableState.compareAndSet(ConnectionState.CONNECTING, ConnectionState.DISCONNECTED)
+            }
+        } else retry() // Opening a saved profile connects only an existing native bond.
+    }
+
     fun select(host: HidHost) { pause(); save(host); retry() }
     fun retry() {
         if (job?.isActive == true) {
-            if (session == null && !mutablePairing.value) pairRequest?.trySend(Unit)
+            if (session == null && !mutablePairing.value) pairRequest?.trySend(Request.PAIR)
             return
         }
         val host = load() ?: run { mutableState.value = ConnectionState.NOT_CONFIGURED; return }
         val token = generation.incrementAndGet()
         job = scope.launch {
             var opened: HidTransport? = null
-            val requests = Channel<Unit>(Channel.CONFLATED)
+            val requests = Channel<Request>(Channel.CONFLATED)
             try {
                 mutableError.value = null
                 mutableState.value = ConnectionState.CONNECTING
@@ -81,11 +95,13 @@ class HidStreamerController internal constructor(
                         val connected = async { awaitConnected(active) }
                         select<Unit> {
                             connected.onAwait { }
-                            requests.onReceive {
-                                mutablePairing.value = true
-                                mutableState.value = ConnectionState.PAIRING
-                                active.requestPairing()
-                                withTimeout(120_000) { connected.await() }
+                            requests.onReceive { request ->
+                                if (request == Request.PAIR) {
+                                    mutablePairing.value = true
+                                    mutableState.value = ConnectionState.PAIRING
+                                    active.requestPairing()
+                                    withTimeout(120_000) { connected.await() }
+                                } else connected.await()
                             }
                         }
                     }
@@ -105,7 +121,7 @@ class HidStreamerController internal constructor(
                             active.send(report)
                         }
                         session = owner
-                        while (requests.tryReceive().isSuccess) Unit
+                        while (requests.tryReceive().isSuccess) { /* Discard requests completed by this connection. */ }
                         mutablePairing.value = false
                         mutableBonded.value = active.bonded
                         mutableError.value = null
@@ -145,7 +161,13 @@ class HidStreamerController internal constructor(
                     } else {
                         val wait = longArrayOf(3_000, 6_000, 12_000)[attempts++]
                         com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "bluetooth", "retry_wait", attempts)
-                        delay(wait)
+                        coroutineScope {
+                            val timer = async { delay(wait) }
+                            select<Unit> {
+                                timer.onAwait { }
+                                requests.onReceive { timer.cancel(); attempts = 0 }
+                            }
+                        }
                         active.reconnect()
                     }
                 }

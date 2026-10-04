@@ -96,3 +96,9 @@ Latest customer confirmation after eba8ec5: background flicker is gone and Off w
 ## Alternative wake through the LG HDMI connection
 
 The owner asks to establish LG-mediated CEC wake before UI work. This can bypass the unavailable standby Bluetooth command path if compatible: wake LG, select HDMI_3, then let the retained HID profile accept Xiaomi recovery. Actual box wake and Bluetooth reconnection are not yet proven for this chain. The current Xiaomi Power button still uses the streamer adapter; it is not a CEC macro. [XIAOMI_CEC_WAKE.md](XIAOMI_CEC_WAKE.md) records the review and one focused existing-APK session. No Bluetooth impersonation, new bond or wake report on a nonexistent connection is introduced.
+
+## LG-mediated wake and automatic control recovery — latest evidence
+
+**PROVEN physically:** selecting Xiaomi/HDMI_3 in MyRemote wakes the box. The installed build did not automatically restore the phone HID connection; selecting the saved device in setup reconnects quickly and controls work. Standalone wake reports on an absent HID link still cannot be delivered.
+
+The coordinator now asks the selected streamer adapter to reconnect after successful app LG power-on or accepted Xiaomi input. HID's automatic request is distinct from explicit pairing: only a retained bonded profile receives it; re-opening a saved profile does not auto-create a bond. It interrupts backoff or resumes the exhausted finite budget without unregistering SDP. Connected/in-progress sessions are retained, no key is sent and explicit Disconnect cancels retries. Tests cover bounded passive recovery, backoff interruption, no automatic pairing, selected transport, retained profile and cleanup. Physical recovery with this updated code remains unproven; no repeat owner diagnostic is requested.

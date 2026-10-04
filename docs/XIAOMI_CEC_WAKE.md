@@ -1,12 +1,12 @@
 # Xiaomi wake through LG HDMI-CEC
 
-Reviewed 2026-10-04 against application commit `fa7d43ce4cc4dcb8bb527c550c3d5f8451eace3b`. Research/documentation only; no new protocol packet, APK, pairing, device setting or network change.
+Reviewed 2026-10-04. Original research used application commit `fa7d43ce4cc4dcb8bb527c550c3d5f8451eace3b`. Latest customer evidence now confirms selecting Xiaomi/HDMI_3 wakes this box. The automatic reconnection gap found afterward is repaired below; no new CEC packet or device-setting change is introduced.
 
 ## Goal and evidence boundary
 
 The owner explicitly asks to investigate LG → HDMI → Xiaomi wake before UI work. Target is Xiaomi TV Box S **3rd Gen**, connected directly to LG 55UK6700YVD **HDMI_3**. LG network wake and Samsung optical Auto Power Link wake are physically confirmed. Xiaomi's disconnected phone Bluetooth wake remains unsuccessful. A root module, replacement hardware, always-on computer or ADB proxy is not needed to investigate this alternative.
 
-The candidate chain is MyRemote wakes LG via existing Wake-on-LAN, waits for registered Connected, then selects the TV-reported HDMI_3 input. LG's CEC controller may wake the selected source. MyRemote does not transmit directly onto the HDMI wire. This is technically credible and reported by owners, **not physically proven for this LG/Xiaomi pair**.
+The candidate chain is MyRemote wakes LG via existing Wake-on-LAN, waits for registered Connected, then selects the TV-reported HDMI_3 input. LG's CEC controller may wake the selected source. MyRemote does not transmit directly onto the HDMI wire. The customer now physically confirms that selecting Xiaomi wakes this box. The exact CEC frames/vendor property were not captured; successful wake does not establish automatic Bluetooth control recovery.
 
 ## Primary protocol and manufacturer review
 
@@ -23,7 +23,7 @@ The candidate chain is MyRemote wakes LG via existing Wake-on-LAN, waits for reg
 
 These are user reports, not manufacturer guarantees or a verified root cause. CoreELEC and older-generation reports are not treated as evidence for this stock 3rd Gen Google TV firmware. Root/wakelock reports change standby behavior and are not part of this application architecture.
 
-## Current implementation review
+## Implementation review before the successful physical session
 
 LgTvController.powerOn sends validated configured WOL packets and waits at most 45 seconds for registered Connected. switchInput matches actual HDMI IDs, issues tv/switchInput and uses only TV-reported launcher metadata as the authorization-denied fallback. The existing Xiaomi source button therefore exercises the relevant LG input route already; no app change is needed to establish feasibility. A successful input acknowledgement does not establish box wake.
 
@@ -31,7 +31,7 @@ RemoteCoordinator's current Xiaomi Power intention still targets the streamer co
 
 The Mac has neither direct access to the TV/box HDMI bus nor the phone's stored LG authorization key. Further LAN probes would not answer this question. No fresh Mac pairing prompt, ADB repair, router interaction or exploratory network test is requested.
 
-## One decisive physical session using the existing APK
+## Completed physical-session request using the existing APK (historical)
 
 With both devices awake, ensure LG General → SIMPLINK (HDMI-CEC) is On and the Xiaomi's HDMI-CEC master option is enabled. Firmware menu labels on Xiaomi may vary; no exact unverified path is prescribed. Leave other CEC/energy/input settings alone for this first check.
 
@@ -42,3 +42,9 @@ If it fails, record failure of this specific chain rather than declaring all CEC
 ## Validation and delivery
 
 Documentation-only investigation: diff and relative-link checks run before local commit. No application tests/builds rerun; prior validated code remains 119 JVM tests, 17 API 35 instrumentation tests, both builds/lint variants and Compose compilation. `/Volumes/Expansion/Videos/MyRemote.apk` remains the verified fa7d43c build. No push, tag or release.
+
+## Latest result and engineering continuation
+
+**PROVEN — customer:** Xiaomi wakes on source selection. The saved Xiaomi and Samsung connections do not restore automatically after waking; manual setup selection finds them quickly and restores working controls. The requested feasibility session is complete. No additional CEC setting, pairing, router or ADB test is requested.
+
+RemoteCoordinator now starts saved-device recovery after accepted Xiaomi HDMI selection and successful LG power-on. HID resumes its paused finite connection budget without replacing the registered profile or prompting for pairing. Samsung resumes a bounded status-validated connection after optical wake, without a power toggle. Connected devices are retained, selected Xiaomi transport is honored and explicit Disconnect cancels recovery. Code does not mark the box awake merely from SSAP input acceptance, infer every transient TV network reconnect as wake, or introduce a new Xiaomi power macro. Post-wake automatic connection behavior in this update remains unproven physically; it is covered by deterministic tests and normal build/lint/emulator gates.

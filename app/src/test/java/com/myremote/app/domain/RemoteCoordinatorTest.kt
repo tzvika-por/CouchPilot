@@ -140,4 +140,56 @@ class RemoteCoordinatorTest {
         assertEquals(1, remote.state.actionCount)
         assertTrue(remote.state.errorMessage!!.contains("Digit must be"))
     }
+
+    @Test fun acceptedTvWakeAndXiaomiInputResumeBothSavedControllersWithoutPowerCommands() = runBlocking {
+        remote.updateTvConnection(ConnectionState.DISCONNECTED)
+        remote.dispatch(RemoteAction.Power)
+        assertEquals(1, streamer.wakeRecoveries)
+        assertEquals(1, soundbar.wakeRecoveries)
+        remote.dispatch(RemoteAction.SelectInput(InputSource.XIAOMI))
+        assertEquals(2, streamer.wakeRecoveries)
+        assertEquals(2, soundbar.wakeRecoveries)
+        assertTrue(streamer.powerEvents.isEmpty())
+        assertTrue(soundbar.events.isEmpty())
+        assertEquals(listOf("power:on", "input:HDMI_3"), tv.events)
+    }
+
+    @Test fun tvOffOtherInputsAndSoundbarOffDoNotResumeSleepingDevices() = runBlocking {
+        remote.updateTvConnection(ConnectionState.CONNECTED)
+        remote.dispatch(RemoteAction.Power)
+        remote.dispatch(RemoteAction.SelectInput(InputSource.MAC_MINI))
+        remote.dispatch(RemoteAction.SoundbarPower)
+        remote.dispatch(RemoteAction.StreamerOff)
+        assertEquals(0, streamer.wakeRecoveries)
+        assertEquals(0, soundbar.wakeRecoveries)
+    }
+
+    @Test fun rejectedTvCommandsNeverTriggerAncillaryRecovery() = runBlocking {
+        val failing = object : TvController {
+            override val connectionState = ConnectionState.DISCONNECTED
+            override suspend fun powerOn() { error("No TV wake") }
+            override suspend fun powerOff() = Unit
+            override suspend fun switchInput(source: InputSource) { error("No input change") }
+        }
+        val coordinator = RemoteCoordinator(failing, streamer, soundbar)
+        coordinator.dispatch(RemoteAction.Power)
+        coordinator.dispatch(RemoteAction.SelectInput(InputSource.XIAOMI))
+        assertEquals(0, streamer.wakeRecoveries)
+        assertEquals(0, soundbar.wakeRecoveries)
+        assertEquals(0, coordinator.state.actionCount)
+    }
+
+    @Test fun ancillaryRecoveryFailureCannotReplayOrRejectAcceptedInput() = runBlocking {
+        val unavailable = object : StreamerController by streamer {
+            override fun reconnectAfterWake() { error("Bluetooth unavailable") }
+        }
+        val state = RemoteCoordinator(tv, unavailable, soundbar)
+            .dispatch(RemoteAction.SelectInput(InputSource.XIAOMI))
+        assertEquals(listOf("input:HDMI_3"), tv.events)
+        assertEquals(1, soundbar.wakeRecoveries)
+        assertEquals(InputSource.XIAOMI, state.selectedInput)
+        assertEquals(1, state.actionCount)
+        assertEquals(null, state.failure)
+    }
+
 }

@@ -22,6 +22,9 @@ class FakeStreamerController : StreamerController {
     override val connectionState = ConnectionState.SIMULATED
     val events = mutableListOf<Pair<RemoteKey, PressKind>>()
     val powerEvents = mutableListOf<String>()
+    var wakeRecoveries = 0
+        private set
+    override fun reconnectAfterWake() { wakeRecoveries++ }
 
     override suspend fun powerOn() { powerEvents += "on" }
     override suspend fun powerOff() { powerEvents += "off" }
@@ -31,6 +34,9 @@ class FakeStreamerController : StreamerController {
 class FakeSoundbarController : SoundbarController {
     override val connectionState = ConnectionState.SIMULATED
     val events = mutableListOf<String>()
+    var wakeRecoveries = 0
+        private set
+    override fun reconnectAfterWake() { wakeRecoveries++ }
 
     override suspend fun togglePower() { events += "power:toggle" }
     override suspend fun volumeUp() { events += "volume:up" }

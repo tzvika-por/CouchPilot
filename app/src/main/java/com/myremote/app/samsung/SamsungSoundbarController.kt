@@ -57,9 +57,14 @@ class SamsungSoundbarController internal constructor(
     /** Foreground entry must not undo the user's power request, including after process restart. */
     fun connectStored() { if (!connectionSuspended) retry() }
 
+    override fun reconnectAfterWake() {
+        if (load() == null || connectionState in setOf(ConnectionState.CONNECTED, ConnectionState.CONNECTING)) return
+        connect(retryBeforeConnected = false, initialAttemptLimit = 3)
+    }
+
     fun retry() = connect(retryBeforeConnected = true)
 
-    private fun connect(retryBeforeConnected: Boolean) {
+    private fun connect(retryBeforeConnected: Boolean, initialAttemptLimit: Int = 1) {
         saveSuspended(false)
         connectionSuspended = false
         disconnect()
@@ -74,27 +79,43 @@ class SamsungSoundbarController internal constructor(
                 _state.value = ConnectionState.CONNECTING
                 var active: SamsungSession? = null
                 try {
-                    val transport = factory.connect(address)
-                    // Publish before initialize so cancellation closes blocking Bluetooth reads.
-                    active = SamsungSession(transport, scope)
-                    if (!isActive) { active.close(); break }
-                    session = active
-                    active.initialize()
+                    suspend fun initialize() {
+                        val transport = factory.connect(address)
+                        // Publish before initialize so cancellation closes blocking Bluetooth reads.
+                        val initialized = SamsungSession(transport, scope)
+                        active = initialized
+                        if (!isActive) { initialized.close(); return }
+                        session = initialized
+                        initialized.initialize()
+                    }
+                    if (initialAttemptLimit > 1 && !canRetry) {
+                        kotlinx.coroutines.withTimeout(15_000) { initialize() }
+                    } else initialize()
+                    if (!isActive) break
                     _error.value = null
                     _state.value = ConnectionState.CONNECTED
                     failures = 0
                     canRetry = true
                     RemoteDiagnostics.record("samsung", "connection", "connected")
-                    active.awaitClosed()
+                    active!!.awaitClosed()
                     throw IOException("Samsung connection closed")
-                } catch (error: CancellationException) { throw error }
-                catch (error: Exception) {
+                } catch (error: Exception) {
+                    if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) throw error
                     if (!isActive) break
                     if (connectionSuspended) { _state.value = ConnectionState.DISCONNECTED; break }
                     _error.value = com.myremote.app.domain.failureKind(error)
                     _state.value = ConnectionState.DISCONNECTED
                     RemoteDiagnostics.record("samsung", "connection", "failed")
-                    if (!canRetry || _error.value in setOf(FailureKind.PERMISSION_DENIED, FailureKind.UNAVAILABLE, FailureKind.NOT_CONNECTED)) break
+                    val terminal = _error.value in setOf(FailureKind.PERMISSION_DENIED,
+                        FailureKind.UNAVAILABLE, FailureKind.NOT_CONNECTED, FailureKind.SECURITY)
+                    if (terminal || (!canRetry && failures + 1 >= initialAttemptLimit)) {
+                        if (initialAttemptLimit > 1 && !canRetry) {
+                            // A failed external-wake recovery must not enable background wake loops.
+                            saveSuspended(true)
+                            connectionSuspended = true
+                        }
+                        break
+                    }
                 } finally {
                     active?.close()
                     if (session === active) session = null

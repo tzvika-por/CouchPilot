@@ -91,17 +91,27 @@ class RemoteCoordinator(
 
     private suspend fun selectInput(source: InputSource) {
         tv.switchInput(source)
+        if (source == InputSource.XIAOMI) reconnectAfterWake()
         state = state.copy(
             selectedInput = source,
             activeDevice = if (source == InputSource.XIAOMI) ActiveDevice.STREAMER else ActiveDevice.TV,
         )
     }
 
+    private fun reconnectAfterWake() {
+        // Ancillary recovery must not turn an accepted TV command into a failed/replayed command.
+        runCatching { streamer.reconnectAfterWake() }
+        runCatching { soundbar.reconnectAfterWake() }
+    }
+
     private suspend fun toggleActivePower() {
         when (state.activeDevice) {
             ActiveDevice.TV -> {
                 val wake = state.tvConnection != ConnectionState.CONNECTED || !state.tvPowerOn
-                if (wake) tv.powerOn() else tv.powerOff()
+                if (wake) {
+                    tv.powerOn()
+                    reconnectAfterWake()
+                } else tv.powerOff()
                 state = state.copy(tvPowerOn = wake)
             }
             ActiveDevice.STREAMER -> {

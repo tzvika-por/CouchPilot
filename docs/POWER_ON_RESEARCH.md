@@ -1,6 +1,6 @@
 # Power-on feasibility research
 
-Latest update 2026-10-04: **LG wake succeeds physically** on `a8b9fcb6de580b54e6d57da1e38c6e5a8ba8fcf1` after enabling Turn on via Wi-Fi. Both LG wake settings were previously off; Bluetooth wake remains off. Samsung optical wake with the TV is now physically confirmed; standalone MyRemote Bluetooth wake remains unsuccessful. The original investigation below inspected `eba8ec5`; its identified implementation gaps were repaired in `a8b9fcb`. The latest follow-up changes documentation only; no new APK or device setting change.
+Latest update 2026-10-04: **LG wake succeeds physically** on `a8b9fcb6de580b54e6d57da1e38c6e5a8ba8fcf1` after enabling Turn on via Wi-Fi. Both LG wake settings were previously off; Bluetooth wake remains off. Samsung optical wake with the TV is now physically confirmed; standalone MyRemote Bluetooth wake remains unsuccessful. The original investigation below inspected `eba8ec5`; its identified implementation gaps were repaired in `a8b9fcb`. Latest customer evidence additionally confirms LG HDMI_3 selection wakes Xiaomi. The ensuing saved-device automatic connection gap is repaired in the current engineering update, without changing device settings or wake packets.
 
 ## Earlier physical evidence — before enabling LG network wake
 
@@ -14,7 +14,7 @@ Losing a control connection prevents delivery on that connection. Standby hardwa
 |---|---|---|
 | LG 55UK6700YVD | Mobile TV On / Wake-on-LAN; model also lists Bluetooth wake | Physically successful on the installed APK after enabling Turn on via Wi-Fi. Disabled network wake was the demonstrated prerequisite blocking the latest attempt. No additional code or pairing change was needed; long-term reliability is not established by one cycle. |
 | Samsung HW-M360 | Optical Auto Power Link; paired-device Bluetooth Power On | Optical wake with the TV is physically confirmed after the Auto Power Link sequence. Standalone SPP wake remains unsuccessful; Bluetooth audio wake is separate and may change the input. |
-| Xiaomi TV Box S (3rd Gen) | Original remote; possibly compatible HDMI-CEC or a standby network receiver | No documented reliable disconnected wake route found for a normal Android phone using this production HID adapter. Firmware/standby compatibility is unresolved, not proven impossible. |
+| Xiaomi TV Box S (3rd Gen) | Original remote; LG-mediated HDMI_3 selection | Customer confirms selecting Xiaomi in MyRemote wakes the box. Standalone disconnected HID wake failed. Automatic post-wake control reconnection is repaired separately and not yet physically proven. |
 
 ## LG: supported hardware, unresolved implementation/configuration outcome
 
@@ -103,3 +103,7 @@ No new physical repeat of LG/input/volume/blinking is requested. Remaining TV-in
 ## Owner-authorized CEC alternative investigation
 
 The owner requested Reddit research, then explicitly asked to check LG-to-Xiaomi HDMI wake before UI. [XIAOMI_CEC_WAKE.md](XIAOMI_CEC_WAKE.md) records exact-model community reports, official LG/AOSP mechanisms, runtime configuration limits and current application routing. Existing LG wake plus HDMI_3 selection can exercise the candidate with the current APK. No standalone CEC SSAP endpoint or physical compatibility is established. One focused settings-and-wake session is the remaining boundary; no root, ADB, Mac pairing or network diagnostic. Application and shared APK unchanged.
+
+## HDMI wake succeeds; automatic control reconnection repaired
+
+The customer confirms Xiaomi wakes when selecting its TV input. After TV wake, Xiaomi and Samsung require manual saved-device setup selection before app controls work. Code review identifies paused HID retries and persisted Samsung Off suppression, not a failed CEC/optical wake protocol. Accepted app LG wake or Xiaomi selection now triggers adapter-owned nonblocking recovery of saved devices, with bounded attempts and no pairing/toggle/input replay. Existing connected sessions are retained. The hardware wake result is proven; this updated automatic reconnection behavior is locally tested and remains physically unproven. No repeated owner test is requested.

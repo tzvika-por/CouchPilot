@@ -160,6 +160,12 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         }
     }
 
+    override fun reconnectAfterWake() {
+        if (_state.value in setOf(ConnectionState.CONNECTED, ConnectionState.CONNECTING,
+                ConnectionState.PAIRING, ConnectionState.WAITING_FOR_CODE)) return
+        if (store.saved() != null) connectStored()
+    }
+
     fun retry() = connectStored()
 
     fun cancelPairing() {
