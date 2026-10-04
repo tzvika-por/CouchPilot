@@ -1,6 +1,6 @@
 # Device validation
 
-These observations came from customer physical tests and the recorded Mac investigation. Latest confirmation after eba8ec5: background TV blinking is resolved; LG, Xiaomi and Samsung power-off works; power-on fails for all three. LG inputs and Samsung volume/mute remain physically proven; earlier Xiaomi correctness was an aggregate success report. Google LAN interoperability, detailed standby behavior and the exact causes of failed wake remain unresolved. The latest record below supersedes historical unproven off/flicker statements.
+These observations came from customer physical tests and the recorded Mac investigation. Latest confirmation: a8b9fcb still fails to wake LG and Samsung; after eba8ec5, background TV blinking is resolved; LG, Xiaomi and Samsung power-off works; power-on fails for all three. LG inputs and Samsung volume/mute remain physically proven; earlier Xiaomi correctness was an aggregate success report. Google LAN interoperability, detailed standby behavior and the exact causes of failed wake remain unresolved. The latest record below supersedes historical unproven off/flicker statements.
 
 ## Proven
 
@@ -284,3 +284,11 @@ Wake candidate validation: debug and unsigned release APKs build; **115 JVM test
 The first Gradle instrumentation run passed 16 tests and failed the notification-denied precondition because the reused/installed emulator app had notification permission granted. No runtime fix was needed: APKs were explicitly installed, POST_NOTIFICATIONS revoked on the **emulator only**, and the entire same test APK rerun directly with AndroidJUnitRunner. That corrected run passed all 17; no phone test, physical bond or device command was used. See README for the repeatable permission-precondition setup.
 
 Delivery: `/Volumes/Expansion/Videos/MyRemote.apk` was atomically replaced and verified byte-for-byte against the built debug APK: **23,213,837 bytes**, SHA-256 **29443c3d46e6118d7a80e7d8a3f65e0da50848bd52610f8bf3b5107e031d133e**. APK signatures match the previous shared build, preserving update compatibility and app data. Packaged DEX contains the new wake code. Physical wake remains unproven for this revision; previous failed results are retained. No push, tag or release.
+
+## Latest wake candidate fails physically — 2026-10-04
+
+**FAILED — customer report on a8b9fcb:** LG TV and Samsung soundbar still do not turn on. The wake candidate is now physically unsuccessful, superseding its UNPROVEN/awaiting-test status. Exact phone error/configuration and device standby settings were not supplied. Existing successful Off, source, volume/mute and background-blink results remain valid; no repeat of those controls is requested.
+
+**PROVEN — new read-only Mac observation:** LG `192.0.2.4` accepts TCP 3000 and 3001 from both `192.0.2.3` (en0) and `192.0.2.19` (en1). ARP entries match the configured wired MAC `02:00:00:00:00:03`. This does not prove panel power state, standby wake, Android broadcast delivery or current wake settings. No pairing prompt, wake packet, control command or persistent network/device change was made.
+
+Code review found no additional proven fix. [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md) records the public-API limits and remaining hypotheses. The only requested owner information is whether LG's General → Mobile TV On → Turn on via Wi-Fi is enabled; no new package, re-pair or repeat power cycle. Samsung optical wake has not been independently disproven because TV wake failed. Documentation-only checks pass; the prior 115-JVM/17-instrumentation/build/lint/Compose results remain unchanged and were not rerun. No push, tag or release.

@@ -1,6 +1,6 @@
 # Power-on feasibility research
 
-Research date: 2026-10-04. Application inspected at `eba8ec5a5b40da64ca5105018bbd31133c8d9f2a`. Research/documentation only: no application, device setting, connection policy or shared APK change.
+Updated 2026-10-04 after the customer tested `a8b9fcb6de580b54e6d57da1e38c6e5a8ba8fcf1`: LG and Samsung wake both still **FAIL**. The original investigation below inspected `eba8ec5`; its identified implementation gaps were repaired in `a8b9fcb`. The latest follow-up changes documentation only; no new APK or device setting change.
 
 ## Latest physical evidence
 
@@ -12,7 +12,7 @@ Losing a control connection prevents delivery on that connection. Standby hardwa
 
 | Device | Available wake route | Engineering conclusion |
 |---|---|---|
-| LG 55UK6700YVD | Mobile TV On / Wake-on-LAN; model also lists Bluetooth wake | Keep pursuing network wake. Exact-model support exists; MyRemote's failed result does not prove it impossible. Saved configuration has a concrete gap to fix before another test. |
+| LG 55UK6700YVD | Mobile TV On / Wake-on-LAN; model also lists Bluetooth wake | Keep pursuing network wake. Exact-model support exists; MyRemote's failed result does not prove it impossible. The configuration repair has shipped, but wake still fails. Standby enablement, phone configuration and packet delivery remain unresolved. |
 | Samsung HW-M360 | Optical Auto Power Link; paired-device Bluetooth Power On | Optical wake fits the existing D.IN installation. Direct SPP-only wake remains unverified; Bluetooth audio wake may change the input. |
 | Xiaomi TV Box S (3rd Gen) | Original remote; possibly compatible HDMI-CEC or a standby network receiver | No documented reliable disconnected wake route found for a normal Android phone using this production HID adapter. Firmware/standby compatibility is unresolved, not proven impossible. |
 
@@ -26,7 +26,7 @@ The [official 2018 webOS 4.0 Mobile TV On guide](https://eguide.lgappstv.com/man
 
 MyRemote already sends standard 102-byte magic packets to the selected LAN's IPv4 directed broadcast, on UDP 9, for configured installation MACs. It binds the Android LAN/source and repeats three times. Registered WSS reconnection is required afterward; UDP send alone is not wake proof. Closing WSS is therefore not, by itself, an explanation for LG's failed wake. [LG Connect SDK's webOS service](https://github.com/ConnectSDK/Connect-SDK-Android-Core/blob/master/src/com/connectsdk/service/webos/WebOSTVDeviceService.java) has no supported SSAP powerOn implementation; ordinary control and standby wake are separate.
 
-### Concrete code finding
+### Historical code finding — repaired in a8b9fcb
 
 `LgInstallation.forSelectedDevice()` supplies known installation MACs only for the observed TV UUID. `LgPairingStore.read()` returns persisted MACs without backfilling an empty list. `LgTvController.connectSelected()` ignores updated selection metadata when host/known UUID does not count as a device change. Consequently, an older selection with missing MACs can remain missing even after rediscovery/reselection, and packet generation rejects an empty MAC list. A manual selection without the known UUID can also remain without a wake address. Tests already cover valid packet generation; they do not cover this legacy metadata migration.
 
@@ -60,7 +60,7 @@ The [2018 LG Simplink control guide](https://eguide.lgappstv.com/manual/w18/atsc
 
 Compatible TV-to-box CEC input/control behavior remains a potential path once the TV is awake, but neither LG input selection nor a CEC label proves this Xiaomi wakes. No unconditional TV → Xiaomi wake macro is justified. The Samsung optical connection cannot carry CEC.
 
-## Engineering boundary
+## Original research boundary — before a8b9fcb
 
 Research establishes LG and Samsung wake capabilities, not physical success in this installation. Xiaomi's phone-only disconnected wake is unresolved. No customer test, router interaction, re-pair, device power cycle, new hardware purchase or UI redesign is requested. Address the LG configuration gap first; retain Xiaomi/Samsung safeguards and the physically successful background retention. UI requirements can follow separately.
 
@@ -71,3 +71,17 @@ Only documentation changes in this update. `git diff --check` and relative docum
 The user authorized proceeding after this research report. The configuration gap described above is now repaired: known-installation legacy MAC migration and same-device metadata updates preserve credentials; normal pinned WSS hello identity learning can complete manual-host setup after registration. Expected UUID conflicts fail before stored-key registration. Missing-address feedback is distinct from wake timeout; a failed LG wake cancels its bounded reconnect job.
 
 The existing Samsung Power intention now attempts one bounded native connection when disconnected, without a power toggle or audio-input change. This is an engineering candidate for Bluetooth Power On, not proof that SPP wakes this hardware. Optical Auto Power Link remains device-controlled and unchanged. The earlier research-only validation paragraph describes that historical update; this new implementation requires fresh gates recorded in DEVICE_VALIDATION.md. No physical success, standby setting change or Xiaomi wake capability follows from these code changes.
+
+## Latest failed wake candidate and remaining boundary
+
+**FAILED — customer physical result:** after installing the wake candidate, neither LG nor Samsung turns back on. This supersedes the candidate's awaiting-validation status. It does not identify a phone error, prove its saved MAC values, or establish the state of either standby setting. Previously working input/volume/mute/Off controls and resolved background blinking remain accepted evidence.
+
+**Autonomous read-only checks:** four source-bound IPv4 TCP connections to LG `192.0.2.4` succeeded: ports 3000 and 3001 from Mac Ethernet `192.0.2.3` and Wi-Fi `192.0.2.19`. The existing ARP entries on en0/en1 identify `02:00:00:00:00:03`, matching the installation's configured wired MAC. Both Mac interfaces are /24 with broadcast `192.0.2.255`. These observations establish current endpoint reachability and recorded MAC agreement, not panel state, standby reachability, phone packet transmission or broadcast reception. No registration, wake packet, power command, router login or device-setting change was performed.
+
+**Code review:** packet construction, broadcast calculation, per-socket LAN/source binding, identity-specific MAC migration, explicit disconnected Samsung connection and bounded cleanup remain implemented and covered by existing deterministic tests. The manifest declares the networking/Bluetooth permissions used by these paths. No additional root cause was proven in this review. Increasing retransmissions or changing ports without device evidence is not a justified fix.
+
+**LG prerequisite remains unknown:** the same-generation official guide requires General → Mobile TV On → Turn on via Wi-Fi enabled. The [maintained integration's troubleshooting](https://www.home-assistant.io/integrations/webostv/#wakeonlan-does-not-work) corroborates that setting for 2017+ models. [LG's public Settings Service](https://webostv.developer.lge.com/develop/references/settings-service) documents locale/country/accessibility keys through a TV-local Luna API; it does not document a remotely readable or writable Mobile TV On key. This does not prove every private firmware API unavailable. MyRemote's phone grant is not available on the Mac; a fresh pairing prompt or speculative private settings command is not used. A single read of that setting is the next decisive information needed, rather than another off/on cycle. Disabled standby reception and failed broadcast delivery remain hypotheses, not diagnoses.
+
+**Samsung distinction:** the failed explicit SPP reconnect does not establish that the documented Bluetooth audio wake is supported through SPP. [Android's public A2DP API](https://developer.android.com/reference/android/bluetooth/BluetoothA2dp) exposes profile status, not a public app-controlled connect method; a hidden-API workaround or automatic audio-input switch is not added. Optical Auto Power Link depends on returning TV optical audio and its own setting. Since LG wake failed, this result does not independently test optical wake. The practical route for this D.IN installation remains establishing LG wake first; standalone MyRemote soundbar wake is still physically unsuccessful.
+
+**Validation/delivery:** documentation-only follow-up; diff and relative-link checks run. Application gates are unchanged from a8b9fcb: 115 JVM tests, 17 actual API 35 instrumentation tests, both builds/lint variants and Compose compilation passed. They are historical validation, not fresh runs or proof of hardware wake. The existing shared APK is unchanged. No push, tag or release.
