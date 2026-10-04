@@ -39,3 +39,6 @@ Unexpected disconnect retries at 5/10/20/30/60 seconds. App backgrounding closes
 ## Approval reuse
 
 The customer's successful refresh generated a stored grant and cleared authorization_refresh_required. Later ordinary app starts send that client-key with forcePairing=false. Backgrounding closes only connections; it retains pairing. Tests cover refresh → background/foreground → new controller with the same stored preferences. Another approval is expected only if local credentials are removed or the TV rejects/revokes them; approval every launch is not intended behavior. The observed refresh cause was not captured, so it is not attributed definitively to migration.
+
+
+**FAILED — latest physical wake check, 2026-10-04:** the customer reported successful power-off followed by unsuccessful power-on in the requested correctness session. The revised per-network broadcast implementation is physically unsuccessful in this installation so far. Successful UDP packet tests do not establish TV standby responsiveness. The first cause remains unresolved; no additional physical test was requested.

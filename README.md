@@ -7,7 +7,8 @@ Native Android remote for LG 55UK6700YVD, Xiaomi Google TV Box S (3rd Gen), and 
 - **PROVEN physically:** MyRemote LG discovery, registration, Connected, Power Off and HDMI 3/Xiaomi → HDMI 2/Mac mini switching; MyRemote Samsung setup, volume up/down and mute/unmute; Samsung Audio Remote volume/mute on optical D.IN; ADB yes+ key/macro semantics. The Galaxy/Xiaomi Bluetooth bond was established, Xiaomi retained the phone accessory, and MyRemote eventually reported Connected after manual recovery.
 - **FAILED physically / unresolved:** prior LG wake and phone-to-Xiaomi TCP reachability. Earlier LG input denial is historical; input switching now succeeds after the customer refreshed and approved authorization with build 8a1c428.
 - **FAILED historical / stability issue:** the Galaxy was absent from the earlier TV accessory search. Phone-initiated pairing later established the bond, but initially connected briefly and entered a reconnect loop. Automatic recovery improvements are implemented and require no new bond; their physical stability is not yet proven.
-- **IMPLEMENTED BUT UNPROVEN physically:** revised LG WOL targeting, MyRemote Xiaomi LAN pairing/keys/wake, Bluetooth key delivery/long press/standby wake, and the revised reconnect stability. Source switching succeeded; the exact direct-versus-launcher path was not captured.
+- **FAILED latest physical check:** revised LG WOL targeting did not turn the TV back on after successful power-off.
+- **IMPLEMENTED / remaining limits:** MyRemote Xiaomi LAN pairing/keys/wake, Bluetooth key delivery/long press/standby wake, and the revised reconnect stability. Source switching succeeded; the exact direct-versus-launcher path was not captured.
 - **OPEN QUESTION:** LG's precise authorization difference from the working CLI, the selective Wi-Fi restriction toward the powered-on Xiaomi. The current implementation is a validation build, not a completed useful release.
 
 ## Build and automated verification
@@ -47,3 +48,5 @@ Connections are active while the app is foreground and close in background. Sour
 - docs/: [architecture](docs/ARCHITECTURE.md), [hardware](docs/HARDWARE_SPECIFICATIONS.md), [device evidence](docs/DEVICE_VALIDATION.md), protocol references and [execution plan](docs/EXECUTION_PLAN.md).
 
 No push, tag or release has been performed.
+
+Watch yes+ currently selects LG HDMI_3/Xiaomi and makes Xiaomi the active remote target. Automatic launch of the yes+ app is not implemented. The latest customer correctness session reported working behavior except LG wake; see DEVICE_VALIDATION for the scope of that aggregate report.
