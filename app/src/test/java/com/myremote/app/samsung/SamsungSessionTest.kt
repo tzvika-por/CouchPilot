@@ -19,6 +19,25 @@ class SamsungSessionTest {
             "ff0b037f0100", "ff0b027f00", "ff0b027400", "ff0b03741000"), transport.sent)
         session.close(); assertTrue(transport.closed)
     }
+    @Test fun powerUsesOneVerifiedToggleWithoutWaitingForAnOffAcknowledgement() = runTest {
+        val transport = ScriptedSamsungTransport()
+        val session = SamsungSession(transport, backgroundScope)
+        session.initialize()
+        session.togglePower()
+        assertEquals(listOf("ff0b027f00", "ff0b022001"), transport.sent.takeLast(2))
+        session.close()
+    }
+
+    @Test fun powerDoesNotSendToggleToAnUnresponsiveSession() = runTest {
+        val transport = ScriptedSamsungTransport(autoReply = false)
+        val session = SamsungSession(transport, backgroundScope)
+        val result = async { runCatching { session.togglePower() } }
+        runCurrent(); advanceTimeBy(4_001); runCurrent()
+        assertTrue(result.await().isFailure)
+        assertEquals(listOf("ff0b027f00"), transport.sent)
+        assertTrue(transport.closed)
+    }
+
     @Test fun unrelatedRepliesCannotFinishPendingVolumeQuery() = runTest {
         val transport = ScriptedSamsungTransport(autoReply = false)
         val session = SamsungSession(transport, backgroundScope)

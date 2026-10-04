@@ -11,6 +11,7 @@ internal object SamsungProtocol {
     fun volumeUp(): ByteArray = frame(11, 127, 1, 1)
     fun volumeDown(): ByteArray = frame(11, 127, 1, 0)
     fun mute(): ByteArray = frame(11, 116, 0)
+    fun powerToggle(): ByteArray = frame(11, 32, 1)
     fun volumeQuery(): ByteArray = frame(11, 127, 0)
     fun muteQuery(): ByteArray = frame(11, 116, 16, 0)
 

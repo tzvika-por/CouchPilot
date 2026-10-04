@@ -16,6 +16,7 @@ interface StreamerController {
 
 interface SoundbarController {
     val connectionState: ConnectionState
+    suspend fun togglePower()
     suspend fun volumeUp()
     suspend fun volumeDown()
     suspend fun mute()

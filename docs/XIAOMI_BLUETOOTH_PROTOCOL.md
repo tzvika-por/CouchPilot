@@ -38,7 +38,7 @@ Independent descriptor: report 1 is an 8-byte keyboard input with 1-byte LED out
 
 The reviewed kernel mappings and Android 14 Generic.kl map Menu Pick to Linux KEY_SELECT and Android DPAD_CENTER, rather than ordinary keyboard ENTER. This distinction matters for yes+ long OK. Short presses hold 60 ms then release; long presses hold 650 ms then release. All writes serialize through a whole press. Cancellation attempts release in a non-cancellable finally block. The existing domain Last Channel macro remains long CENTER then short CENTER; no macro lives in Compose.
 
-HID has no reliable reported TV power state or current app. Sleep/wake require a live Bluetooth connection and remain unproven; wake cannot work if the box disconnects Bluetooth in standby. No absolute wake or successful state change is claimed merely because Android accepts a report. App launch and soundbar power are not added by this adapter.
+HID has no reliable reported TV power state or current app. Sleep/wake require a live Bluetooth connection and remain unproven; wake cannot work if the box disconnects Bluetooth in standby. No absolute wake or successful state change is claimed merely because Android accepts a report. The dedicated Xiaomi Off action now exposes the existing System Sleep report independently of HDMI selection. Physical standby/wake remains unverified. App launch is not provided by this adapter; the redundant Watch yes+ shortcut is removed. Samsung power belongs to its separate RFCOMM adapter.
 
 ## Automated evidence and physical boundary
 

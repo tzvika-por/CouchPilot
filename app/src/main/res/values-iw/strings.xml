@@ -35,7 +35,6 @@
     <string name="disconnected">מנותק</string>
     <string name="connected">מחובר</string>
     <string name="power">הפעלה / כיבוי</string>
-    <string name="watch_yes">צפייה ב־yes+</string>
     <string name="sources">מקורות</string>
     <string name="ps5">PS5</string>
     <string name="mac_mini">Mac mini</string>
@@ -85,4 +84,9 @@
     <string name="bluetooth_pairing_started">ממתינים לאישור הצימוד…</string>
     <string name="bluetooth_remote_unavailable">שליטה דרך Bluetooth אינה זמינה. ודאו ש־Bluetooth מופעל, או השתמשו ב־Wi-Fi.</string>
     <string name="bluetooth_saved_bond">הטלפון כבר מצומד. החיבור מחדש משתמש בצימוד השמור; בדרך כלל אין צורך באישור נוסף.</string>
+    <string name="tv_power">הפעלה / כיבוי LG</string>
+    <string name="streamer_power">הפעלה / כיבוי שיאומי</string>
+    <string name="streamer_off">כיבוי שיאומי</string>
+    <string name="soundbar_power">הפעלה / כיבוי מקרן קול</string>
+    <string name="samsung_power_guidance">כפתור ההפעלה של מקרן הקול שולח החלפת מצב אחת כשהמכשיר מחובר. הפעלה ממצב המתנה אינה מובטחת. לאחר הלחיצה החיבור האוטומטי מושהה; ניסיון חוזר מחדש את החיבור בלי לשלוח החלפת מצב נוספת.</string>
 </resources>

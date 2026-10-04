@@ -32,6 +32,7 @@ import com.myremote.app.samsung.SamsungDevice
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.samsung_setup), style = MaterialTheme.typography.titleLarge)
                 Text(stringResource(R.string.samsung_guidance))
+                Text(stringResource(R.string.samsung_power_guidance))
                 if (!hasPermission) OutlinedButton(onClick = onPermission, modifier = Modifier.fillMaxWidth().testTag("samsung_permission")) {
                     Text(stringResource(R.string.samsung_allow))
                 } else {

@@ -10,6 +10,7 @@ class SamsungProtocolTest {
     // Independent byte vectors transcribed from verified vendor command definitions (no vendor code).
     @Test fun commandVectorsMatchVerifiedVendorWireDefinitions() {
         fun assertHex(hex: String, bytes: ByteArray) = assertEquals(hex, bytes.joinToString("") { "%02x".format(it.toInt() and 255) })
+        assertHex("ff0b022001", SamsungProtocol.powerToggle())
         assertHex("ff08020101", SamsungProtocol.start())
         assertHex("ff08020100", SamsungProtocol.stop())
         assertHex("ff0b037f0101", SamsungProtocol.volumeUp())

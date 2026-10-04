@@ -32,7 +32,7 @@ Xiaomi Bluetooth fallback: choose Bluetooth in Xiaomi setup and allow Bluetooth 
 
 Samsung: Set up soundbar → allow Bluetooth on Android 12+ → select the existing paired Samsung. Android stores the bond; MyRemote stores the selection and connects directly to the control service. Keep D.IN and close Samsung Audio Remote to avoid competing control sessions. No new Bluetooth scan/location permission, A2DP playback or generic AVRCP workaround is used. Forget removes MyRemote selection without removing the Android bond.
 
-Connections are active while the app is foreground and close in background. Source buttons use stable HDMI IDs. Watch yes+ selects HDMI 3; launching yes+ or waking it automatically is withheld until reliable. Global Xiaomi keys remain available on all sources. Volume/mute always targets Samsung. Sound buttons use speaker icons with localized accessibility labels. After a valid mute status reply, the middle icon offers the opposite action (unmute when muted); unknown status uses a neutral mute toggle. There is no Power Off All.
+Connections are active while the app is foreground and close in background. Source buttons use stable HDMI IDs. The redundant Watch yes+ shortcut is removed. The Xiaomi source button selects HDMI 3; direct yes+ launch is unavailable through the working Bluetooth HID route. Global Xiaomi keys remain available on all sources. Volume/mute always targets Samsung. Sound buttons use speaker icons with localized accessibility labels. After a valid mute status reply, the middle icon offers the opposite action (unmute when muted); unknown status uses a neutral mute toggle. A dedicated Xiaomi Off button sends standby on the selected Xiaomi connection, independently of HDMI selection. The original power button identifies its current LG/Xiaomi target. Soundbar power sends the Samsung toggle once while connected and then pauses automatic reconnection, including after app restart; setup Retry explicitly resumes it. Neither new individual power action is physically verified. There is no Power Off All.
 
 ## Project map
 
@@ -49,4 +49,7 @@ Connections are active while the app is foreground and close in background. Sour
 
 No push, tag or release has been performed.
 
-Watch yes+ currently selects LG HDMI_3/Xiaomi and makes Xiaomi the active remote target. Automatic launch of the yes+ app is not implemented. The latest customer correctness session reported working behavior except LG wake; see DEVICE_VALIDATION for the scope of that aggregate report.
+Watch yes+ has been removed at the customer’s request because it did not launch the app. Xiaomi source selection remains available. Automatic yes+ launch needs a usable app-launch protocol; Bluetooth HID only provides input reports. The latest customer correctness session reported working behavior except LG wake; see DEVICE_VALIDATION for the scope of that aggregate report.
+
+
+Latest individual-power candidate: 96 passing JVM tests; 14 passing API 35 emulator tests; both APK builds, both lint variants (0 errors, 20 advisory warnings), Compose test APK compilation and resource/diff checks passed. The updated debug package is delivered as `/Volumes/Expansion/Videos/MyRemote.apk`, with byte-for-byte checksum verification and the existing signing identity. Individual Xiaomi standby and Samsung power-toggle effects remain physically unverified; LG wake remains failed.

@@ -18,21 +18,41 @@ import org.junit.Test
 class RemoteScreenTest {
     @get:Rule val composeRule = createComposeRule()
 
-    @Test fun requiredControlsAreAvailableAndWatchYesDispatchesOneAction() {
+    @Test fun requiredControlsExposeIndependentDevicePowerAndRemoveRedundantShortcut() {
         val actions = mutableListOf<RemoteAction>()
         composeRule.setContent {
             RemoteTheme { RemoteScreen(RemoteState(), onAction = { actions.add(it) }) }
         }
 
-        listOf("power", "watch_yes", "source_ps5", "source_mac_mini", "source_xiaomi",
+        listOf("power", "xiaomi_off", "soundbar_power", "source_ps5", "source_mac_mini", "source_xiaomi",
             "source_pc", "volume_down", "mute", "volume_up", "channel_down", "last_channel",
             "channel_up", "digit_0", "digit_9", "up", "down", "left", "right", "ok",
             "back", "home", "play_pause", "rewind", "fast_forward", "configure_xiaomi", "configure_samsung").forEach { tag ->
             composeRule.onNodeWithTag(tag).assertExists()
         }
-        composeRule.onNodeWithTag("watch_yes").performScrollTo().performClick()
-        assertEquals(listOf(RemoteAction.WatchYesPlus), actions)
+        composeRule.onNodeWithTag("watch_yes").assertDoesNotExist()
+        composeRule.onNodeWithTag("xiaomi_off").performScrollTo().performClick()
+        composeRule.onNodeWithTag("soundbar_power").performScrollTo().performClick()
+        assertEquals(listOf(RemoteAction.StreamerOff, RemoteAction.SoundbarPower), actions)
     }
+    @Test fun rtlPowerLabelsIdentifyActiveTargetAndIndependentOffActions() {
+        val state = mutableStateOf(RemoteState(activeDevice = com.myremote.app.domain.ActiveDevice.TV))
+        val actions = mutableListOf<RemoteAction>()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        composeRule.setContent {
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
+                RemoteTheme { RemoteScreen(state.value, onAction = { actions += it }) }
+            }
+        }
+        composeRule.onNodeWithText(context.getString(R.string.tv_power)).assertExists()
+        composeRule.onNodeWithTag("xiaomi_off").performScrollTo().performClick()
+        composeRule.runOnIdle { state.value = state.value.copy(activeDevice = com.myremote.app.domain.ActiveDevice.STREAMER) }
+        composeRule.onNodeWithText(context.getString(R.string.streamer_power)).assertExists()
+        composeRule.onNodeWithTag("soundbar_power").performScrollTo().performClick()
+        assertEquals(listOf(RemoteAction.StreamerOff, RemoteAction.SoundbarPower), actions)
+    }
+
     @Test fun rtlDoesNotReverseNavigationIntentAndMediaButtonsDispatch() {
         val actions = mutableListOf<RemoteAction>()
         composeRule.setContent {

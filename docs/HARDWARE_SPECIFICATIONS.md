@@ -36,7 +36,7 @@ Installation-only wake addresses: wired `02:00:00:00:00:03`, wireless `02:00:00:
 
 **PROVEN — static vendor-app observation:** Samsung-signed Audio Remote 1.5.16 uses Bluetooth Classic RFCOMM, SPP UUID `00001101-0000-1000-8000-00805f9b34fb`, and a proprietary framed stream. Volume and mute are explicit control packets; they do not require A2DP playback or generic AVRCP. The verified public artifact, hashes, command vectors and research boundaries are recorded in [Samsung protocol](SAMSUNG_M360_PROTOCOL.md). This establishes what the vendor app sends, not current MyRemote physical success.
 
-**PROVEN — physical:** the independent RFCOMM adapter successfully completed setup and volume up/down/mute/unmute in the customer session with MyRemote 8a1c428. Android bond reuse, response validation and timeout/cancellation/reconnect also have automated coverage; extended physical reconnect reliability remains unmeasured. Power is withheld: vendor power-toggle bytes exist, but toggle is not a reliable explicit wake/off contract and standby availability is unmeasured. Bluetooth Power may activate Bluetooth playback/input; the app does not change the soundbar away from D.IN.
+**PROVEN — physical:** the independent RFCOMM adapter successfully completed setup and volume up/down/mute/unmute in the customer session with MyRemote 8a1c428. Android bond reuse, response validation and timeout/cancellation/reconnect also have automated coverage; extended physical reconnect reliability remains unmeasured. Soundbar power now exposes the verified vendor toggle on a live RFCOMM session, without claiming an absolute wake/off contract; its physical effect and standby availability remain unmeasured. Bluetooth Power may activate Bluetooth playback/input; the app does not change the soundbar away from D.IN.
 
 ## Sources and activity safety
 
@@ -44,7 +44,7 @@ Installation-only wake addresses: wired `02:00:00:00:00:03`, wireless `02:00:00:
 |---|---|---|
 | HDMI_1 | PS5 | Input selection only; no console shutdown or CEC power action. |
 | HDMI_2 | Mac mini | Input selection only; computer wake/sleep is not implemented. |
-| HDMI_3 | Xiaomi | One Watch yes+ action selects input; global streamer controls remain available. |
+| HDMI_3 | Xiaomi | Xiaomi source selects input; global streamer controls remain available. Redundant Watch yes+ is removed. |
 | HDMI_4 | PC | Input selection only; no OS/network wake commands. |
 
 Simplink can couple power across connected devices depending on settings; [LG's Simplink guidance](https://www.lgappstv.com/manual/l16/common/option/simplink_all/eng/l16__option__simplink_all__eng.html) describes Auto Power Sync. MyRemote does not send CEC commands or implement Power Off All. Optical audio carries no HDMI-CEC control; Samsung volume must use its Bluetooth control service. Launching yes+ automatically is withheld until a supported reliable app-launch path is established. No installed app ID is guessed.

@@ -64,17 +64,17 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RemoteButton(
-                    label = stringResource(R.string.power),
+                    label = stringResource(if (state.activeDevice == ActiveDevice.STREAMER)
+                        R.string.streamer_power else R.string.tv_power),
                     tag = "power",
                     modifier = Modifier.weight(1f),
                     onClick = { onAction(RemoteAction.Power) },
                 )
                 RemoteButton(
-                    label = stringResource(R.string.watch_yes),
-                    tag = "watch_yes",
-                    modifier = Modifier.weight(1.5f),
-                    emphasized = true,
-                    onClick = { onAction(RemoteAction.WatchYesPlus) },
+                    label = stringResource(R.string.streamer_off),
+                    tag = "xiaomi_off",
+                    modifier = Modifier.weight(1f),
+                    onClick = { onAction(RemoteAction.StreamerOff) },
                 )
             }
 
@@ -89,6 +89,9 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
             }
 
             SectionTitle(R.string.sound)
+            RemoteButton(stringResource(R.string.soundbar_power), "soundbar_power", Modifier.fillMaxWidth()) {
+                onAction(RemoteAction.SoundbarPower)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RemoteButton(stringResource(R.string.volume_down), "volume_down", Modifier.weight(1f), icon = R.drawable.ic_volume_down) {
                     onAction(RemoteAction.VolumeDown)

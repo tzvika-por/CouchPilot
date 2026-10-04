@@ -45,8 +45,8 @@ class RemoteCoordinatorTest {
         assertEquals("Long press failed", remoteWithFailure.state.errorMessage)
     }
 
-    @Test fun watchYesSelectsXiaomiInputAndStreamer() = runBlocking {
-        val state = remote.dispatch(RemoteAction.WatchYesPlus)
+    @Test fun selectingXiaomiInputActivatesStreamer() = runBlocking {
+        val state = remote.dispatch(RemoteAction.SelectInput(InputSource.XIAOMI))
 
         assertEquals(listOf("input:HDMI_3"), tv.events)
         assertEquals(InputSource.XIAOMI, state.selectedInput)
@@ -90,7 +90,7 @@ class RemoteCoordinatorTest {
                 throw java.io.IOException("LG authorization needs refresh")
             }
         }
-        val state = RemoteCoordinator(deniedTv, streamer, soundbar).dispatch(RemoteAction.WatchYesPlus)
+        val state = RemoteCoordinator(deniedTv, streamer, soundbar).dispatch(RemoteAction.SelectInput(InputSource.XIAOMI))
         assertEquals(ConnectionState.AUTHORIZATION_REQUIRED, state.tvConnection)
         assertEquals(null, state.selectedInput)
         assertEquals(ActiveDevice.TV, state.activeDevice)
@@ -104,6 +104,32 @@ class RemoteCoordinatorTest {
         remote.dispatch(RemoteAction.VolumeUp)
 
         assertEquals(listOf("volume:down", "mute", "volume:up"), soundbar.events)
+    }
+
+    @Test fun dedicatedPowerTargetsDoNotDependOnSelectedInput() = runBlocking {
+        remote.dispatch(RemoteAction.SelectInput(InputSource.MAC_MINI))
+        remote.dispatch(RemoteAction.StreamerOff)
+        remote.dispatch(RemoteAction.SoundbarPower)
+        assertEquals(listOf("input:HDMI_2"), tv.events)
+        assertEquals(listOf("off"), streamer.powerEvents)
+        assertEquals(listOf("power:toggle"), soundbar.events)
+        assertEquals(InputSource.MAC_MINI, remote.state.selectedInput)
+        assertEquals(ActiveDevice.TV, remote.state.activeDevice)
+        assertFalse(remote.state.streamerPowerOn)
+    }
+
+    @Test fun failedStandbyDoesNotInvertStreamerPowerOrChangeTv() = runBlocking {
+        val unavailable = object : StreamerController {
+            override val connectionState = ConnectionState.DISCONNECTED
+            override suspend fun powerOn() = error("Unexpected wake")
+            override suspend fun powerOff() = throw DeviceFailure(FailureKind.NOT_CONNECTED, "No Xiaomi channel")
+            override suspend fun sendKey(key: RemoteKey, pressKind: PressKind) = Unit
+        }
+        val result = RemoteCoordinator(tv, unavailable, soundbar).dispatch(RemoteAction.StreamerOff)
+        assertTrue(result.streamerPowerOn)
+        assertEquals(FailureKind.NOT_CONNECTED, result.failure)
+        assertEquals(0, result.actionCount)
+        assertTrue(tv.events.isEmpty())
     }
 
     @Test fun numericDigitsAreValidatedAndMapped() = runBlocking {

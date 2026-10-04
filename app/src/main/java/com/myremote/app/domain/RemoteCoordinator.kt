@@ -64,7 +64,11 @@ class RemoteCoordinator(
     private suspend fun execute(action: RemoteAction) {
         when (action) {
             RemoteAction.Power -> toggleActivePower()
-            RemoteAction.WatchYesPlus -> selectInput(InputSource.XIAOMI)
+            RemoteAction.StreamerOff -> {
+                streamer.powerOff()
+                state = state.copy(streamerPowerOn = false)
+            }
+            RemoteAction.SoundbarPower -> soundbar.togglePower()
             is RemoteAction.SelectInput -> selectInput(action.source)
             RemoteAction.VolumeUp -> soundbar.volumeUp()
             RemoteAction.VolumeDown -> soundbar.volumeDown()

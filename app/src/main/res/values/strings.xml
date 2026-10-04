@@ -35,7 +35,6 @@
     <string name="disconnected">Disconnected</string>
     <string name="connected">Connected</string>
     <string name="power">Power</string>
-    <string name="watch_yes">Watch yes+</string>
     <string name="sources">Sources</string>
     <string name="ps5">PS5</string>
     <string name="mac_mini">Mac mini</string>
@@ -85,4 +84,9 @@
     <string name="bluetooth_pairing_started">Waiting for pairing approval…</string>
     <string name="bluetooth_remote_unavailable">Bluetooth remote is unavailable. Check Bluetooth is on, or use Wi-Fi.</string>
     <string name="bluetooth_saved_bond">This phone is already paired. Reconnecting uses the saved pairing; new approval is normally unnecessary.</string>
+    <string name="tv_power">LG TV power</string>
+    <string name="streamer_power">Xiaomi power</string>
+    <string name="streamer_off">Xiaomi off</string>
+    <string name="soundbar_power">Soundbar power</string>
+    <string name="samsung_power_guidance">Soundbar power sends one toggle while connected. It does not guarantee wake from standby. After using it, automatic reconnection pauses; Retry resumes connection without sending another toggle.</string>
 </resources>

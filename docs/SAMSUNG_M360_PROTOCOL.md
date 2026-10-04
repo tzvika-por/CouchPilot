@@ -24,6 +24,7 @@ Frame: `FF family length command parameters...`. Length counts command plus para
 | Volume up | `FF 0B 03 7F 01 01` |
 | Volume down | `FF 0B 03 7F 01 00` |
 | Mute toggle | `FF 0B 02 74 00` |
+| Power toggle | `FF 0B 02 20 01` |
 | Query volume | `FF 0B 02 7F 00` |
 | Query mute | `FF 0B 03 74 10 00` |
 
@@ -41,7 +42,9 @@ Setup lists already-paired Samsung/soundbar devices; the customer's existing Sam
 
 ## Power boundary
 
-A vendor power-toggle packet was identified (`FF 0B 02 20 01`), but is not sent or exposed as an explicit power command. It cannot prove wake when RFCOMM is unavailable in standby, and toggling an unknown state could turn off an active soundbar. Optical Auto Power Link and Bluetooth Power are environment settings; they were not inspected or changed. Soundbar power and Power Off All remain unimplemented pending reliable individual power semantics.
+The previously identified vendor power-toggle packet (`FF 0B 02 20 01`) is now exposed as **Soundbar power**, following the customer's request for an off control. This is deliberately a toggle, not a claimed absolute Off/On operation. It requires an existing Connected session and a fresh valid volume response before the one toggle is sent; the query verifies a live control service, not the panel's on/off state. No acknowledgement is required after the toggle because standby can disconnect RFCOMM. The controller persists automatic-connection suppression before attempting the command and closes its session afterward, even on uncertain write/cancellation. Repeated taps cannot resend while disconnected. Foreground/background/process restart and setup-device refresh respect suppression. Explicit Retry/selection restores ordinary connection attempts without replaying a toggle.
+
+**IMPLEMENTED BUT NOT PHYSICALLY PROVEN:** MyRemote soundbar power toggle and its standby effect. **OPEN QUESTION:** wake when RFCOMM is unavailable in standby, whether standby answers status requests, Bluetooth Power configuration, and optical Auto Power Link. [Samsung's exact M360 product description](https://www.samsung.com/es/audio-devices/soundbar/2-1-ch-soundbar-black-hw-m360-zf/) describes Bluetooth Power On after pairing, but this does not establish that an SPP-only connection can wake this installation without selecting Bluetooth audio. No A2DP playback/input switch or settings change is added. There is no Power Off All or guaranteed disconnected soundbar wake.
 
 ## Mute indicator
 

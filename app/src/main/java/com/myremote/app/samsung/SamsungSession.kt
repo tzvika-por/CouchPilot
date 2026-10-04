@@ -57,6 +57,12 @@ internal class SamsungSession(private val transport: SamsungTransport, scope: Co
         SamsungProtocol.muted(response) ?: throw IOException("Samsung mute status was invalid")
     }
 
+    /** A toggle, never retried: standby may close the stream without an acknowledgement. */
+    suspend fun togglePower() = mutex.withLock {
+        verifyVolume()
+        transport.send(SamsungProtocol.powerToggle())
+    }
+
     private suspend fun verifyVolume() {
         val response = query(127, SamsungProtocol.volumeQuery())
         if (SamsungProtocol.volume(response) == null) throw IOException("Samsung volume status was invalid")

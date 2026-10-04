@@ -25,7 +25,8 @@ enum class PressKind { SHORT, LONG }
 
 sealed interface RemoteAction {
     data object Power : RemoteAction
-    data object WatchYesPlus : RemoteAction
+    data object StreamerOff : RemoteAction
+    data object SoundbarPower : RemoteAction
     data class SelectInput(val source: InputSource) : RemoteAction
     data object VolumeUp : RemoteAction
     data object VolumeDown : RemoteAction

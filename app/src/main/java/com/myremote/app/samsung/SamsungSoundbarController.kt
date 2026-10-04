@@ -25,6 +25,8 @@ class SamsungSoundbarController internal constructor(
     private val scope: CoroutineScope,
     private val load: () -> String?,
     private val save: (String?) -> Unit,
+    private val loadSuspended: () -> Boolean = { false },
+    private val saveSuspended: (Boolean) -> Unit = {},
 ) : SoundbarController, AutoCloseable {
     constructor(context: Context) : this(
         SamsungBluetooth(context.applicationContext).transportFactory,
@@ -32,6 +34,9 @@ class SamsungSoundbarController internal constructor(
         { context.getSharedPreferences("samsung_soundbar", Context.MODE_PRIVATE).getString("address", null) },
         { address -> check(context.getSharedPreferences("samsung_soundbar", Context.MODE_PRIVATE)
             .edit().putString("address", address).commit()) },
+        { context.getSharedPreferences("samsung_soundbar", Context.MODE_PRIVATE).getBoolean("power_connection_suspended", false) },
+        { suspended -> check(context.getSharedPreferences("samsung_soundbar", Context.MODE_PRIVATE)
+            .edit().putBoolean("power_connection_suspended", suspended).commit()) },
     )
 
     private val _state = MutableStateFlow(if (load() == null) ConnectionState.NOT_CONFIGURED else ConnectionState.DISCONNECTED)
@@ -44,14 +49,21 @@ class SamsungSoundbarController internal constructor(
     private var job: Job? = null
     @Volatile private var session: SamsungSession? = null
 
+    @Volatile private var connectionSuspended = loadSuspended()
+
     fun select(device: SamsungDevice) { save(device.address); retry() }
 
+    /** Foreground entry must not undo the user's power request, including after process restart. */
+    fun connectStored() { if (!connectionSuspended) retry() }
+
     fun retry() {
+        saveSuspended(false)
+        connectionSuspended = false
         disconnect()
         val address = load() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return }
         job = scope.launch {
             var failures = 0
-            while (isActive) {
+            while (isActive && !connectionSuspended) {
                 _muted.value = null
                 _state.value = ConnectionState.CONNECTING
                 var active: SamsungSession? = null
@@ -71,6 +83,7 @@ class SamsungSoundbarController internal constructor(
                 } catch (error: CancellationException) { throw error }
                 catch (error: Exception) {
                     if (!isActive) break
+                    if (connectionSuspended) { _state.value = ConnectionState.DISCONNECTED; break }
                     _error.value = com.myremote.app.domain.failureKind(error)
                     _state.value = ConnectionState.DISCONNECTED
                     RemoteDiagnostics.record("samsung", "connection", "failed")
@@ -103,6 +116,22 @@ class SamsungSoundbarController internal constructor(
     override suspend fun volumeUp() = command("volume_up") { _muted.value = null; it.volumeUp() }
     override suspend fun volumeDown() = command("volume_down") { _muted.value = null; it.volumeDown() }
     override suspend fun mute() = command("mute") { _muted.value = it.mute() }
+
+    override suspend fun togglePower() {
+        val active = session?.takeIf { connectionState == ConnectionState.CONNECTED }
+            ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "Samsung soundbar is not connected")
+        // Persist before writing: even a failed/cancelled write can have reached the device.
+        // Never replay a toggle or reconnect automatically after an uncertain outcome.
+        val connectionJob = job
+        saveSuspended(true)
+        connectionSuspended = true
+        try {
+            active.togglePower()
+            RemoteDiagnostics.record("samsung", "power_toggle", "sent")
+        } finally {
+            if (job === connectionJob) disconnect() else active.close()
+        }
+    }
 
     fun disconnect() {
         _muted.value = null

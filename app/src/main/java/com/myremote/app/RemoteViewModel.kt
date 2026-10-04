@@ -90,7 +90,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun startConnections() {
-        if (bluetooth.hasPermission()) soundbar.retry()
+        if (bluetooth.hasPermission()) soundbar.connectStored()
         if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) streamer.connectStored() else hid.retry()
         tv.connectStored()
         if (_soundbarSetupVisible.value) refreshSoundbarDevices()
@@ -198,7 +198,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     fun refreshSoundbarDevices() {
         _bluetoothPermission.value = bluetooth.hasPermission()
         _soundbarDevices.value = runCatching { bluetooth.pairedDevices() }.getOrDefault(emptyList())
-        if (bluetooth.hasPermission()) soundbar.retry()
+        if (bluetooth.hasPermission()) soundbar.connectStored()
     }
     fun closeSoundbarSetup() { _soundbarSetupVisible.value = false }
     fun selectSoundbar(device: SamsungDevice) = soundbar.select(device)
