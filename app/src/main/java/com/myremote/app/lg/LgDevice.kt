@@ -20,8 +20,12 @@ internal data class LgSavedDevice(
 internal object LgInstallation {
     private val targetWakeMacs = listOf("02:00:00:00:00:03", "02:00:00:00:00:01")
 
+    // The recorded UUID identifies this installation; model alone does not identify an individual TV.
+    private const val targetUuid = "00000000-0000-4000-8000-000000000001"
     fun forSelectedDevice(device: LgDevice): LgDevice = device.copy(
-        wakeMacs = device.wakeMacs.ifEmpty { targetWakeMacs },
+        wakeMacs = device.wakeMacs.ifEmpty {
+            if (device.uuid?.removePrefix("uuid:") == targetUuid) targetWakeMacs else emptyList()
+        },
     )
 }
 
@@ -36,11 +40,10 @@ internal class LgPairingStore(private val prefs: SharedPreferences) {
         val name = prefs.getString("name", host) ?: host
         val macs = prefs.getString("wake_macs", "").orEmpty().split(',').filter(String::isNotBlank)
         val key = prefs.getString("client_key", null)
-        val currentGrant = prefs.getInt("authorization_revision", 0) == LgProtocol.AUTHORIZATION_REVISION
         return LgSavedDevice(LgDevice(name, host, prefs.getString("model", null),
             prefs.getString("uuid", null), macs),
-            key.takeIf { currentGrant }, prefs.getString("certificate_pin", null),
-            prefs.getBoolean("authorization_refresh_required", false) || (key != null && !currentGrant))
+            key, prefs.getString("certificate_pin", null),
+            prefs.getBoolean("authorization_refresh_required", false))
     }
 
     fun select(device: LgDevice) {

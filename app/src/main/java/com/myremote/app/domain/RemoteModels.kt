@@ -47,4 +47,5 @@ data class RemoteState(
     val streamerPowerOn: Boolean = true,
     val actionCount: Int = 0,
     val errorMessage: String? = null,
+    val failure: FailureKind? = null,
 )

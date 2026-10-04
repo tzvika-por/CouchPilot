@@ -72,7 +72,7 @@ internal object ProtoWire {
                 if (shift == 0) return null
                 throw EOFException("Truncated varint")
             }
-            require(shift < 64 || next and 0x7e == 0) { "Varint overflow" }
+            require(shift != 63 || next and 0x7e == 0) { "Varint overflow" }
             value = value or ((next and 0x7f).toLong() shl shift)
             if (next and 0x80 == 0) return value
         }

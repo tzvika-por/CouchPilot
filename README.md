@@ -1,37 +1,45 @@
 # My Remote
 
-A native Android remote app for an LG webOS TV, Xiaomi TV Box S (3rd Gen), and Samsung HW-M360 soundbar. LG control now uses native webOS SSAP over a secure WebSocket, and Xiaomi control uses Android TV Remote Service v2 over TLS. The soundbar still uses a simulated adapter. MyRemote LG discovery and registration work physically; input switching currently returns 401 and revised authorization awaits validation. Xiaomi control remains blocked by the recorded Wi-Fi path restriction.
+Native Android remote for LG 55UK6700YVD, Xiaomi Google TV Box S (3rd Gen), and Samsung HW-M360. One dark Hebrew/RTL-capable screen handles sources, sound, navigation, media, digits, channels and the yes+ Last Channel macro. Production adapters use LG SSAP/WSS, Google TV Remote Service v2/TLS and Samsung Bluetooth Classic RFCOMM. No ADB, Developer Options, vendor CLI or online computer is required by the shipped app.
 
-## Build
+## Current evidence
 
-Requirements: Android SDK Platform 37, Build Tools 36.0.0, JDK 17 or newer compatible with Gradle 9.6, and internet access for Gradle dependencies on first build.
+- **PROVEN physically:** MyRemote LG discovery, registration, Connected and Power Off; Windows CLI HDMI 3 switching; Samsung Audio Remote volume/mute on optical D.IN; ADB yes+ key/macro semantics.
+- **FAILED physically:** MyRemote LG input permission denial persisted after refresh; prior LG wake; phone-to-Xiaomi TCP reachability.
+- **IMPLEMENTED BUT UNPROVEN physically:** new LG input launcher fallback and WOL targeting, MyRemote Samsung RFCOMM volume/mute, MyRemote Xiaomi pairing/keys/wake.
+- **OPEN QUESTION:** LG's precise authorization difference from the working CLI, Samsung physical SDP/status interoperability, and the currently usable Xiaomi endpoint/network path. The current implementation is a validation build, not a completed useful release.
 
-On the development Mac used for this milestone, the SDK is installed under `/private/tmp/myremote-android-sdk`; an ignored `local.properties` file points Gradle to it. If that temporary directory is cleared, install the SDK elsewhere and update `local.properties` or set `ANDROID_HOME`.
+## Build and automated verification
+
+Use Gradle Wrapper (9.6), Android SDK Platform 37 / Build Tools 36, and a compatible JDK (17+). Dependencies download on first build. Set ANDROID_HOME or ignored local.properties sdk.dir. The development SDK/cache under /private/tmp are disposable; reinstall or configure a durable SDK if they are cleared. Versions are pinned in build.gradle.kts/app/build.gradle.kts. No globally installed Gradle is required.
 
 ```sh
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest
-```
-
-The instrumented Compose test can be compiled without a device using `./gradlew :app:assembleDebugAndroidTest`. Running it needs an emulator or connected Android phone:
-
-```sh
+./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebugAndroidTest
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
+The second command needs an emulator/development device. Only debug JVM unit tests are enabled in the current AGP configuration. Release assembles an **unsigned** validation APK; signing/distribution are not configured or performed. Local protocol-server tests need loopback sockets. They never send TV/soundbar commands or require physical devices. See docs/DEVICE_VALIDATION.md for exact latest results.
+
+## Setup and behavior
+
+LG: discover/select or enter hostname/IP; ordinary TV approval stores the key and TLS pin. Existing working keys are reused. A command denial keeps the connection; input launch fallback uses only TV-reported metadata. Refresh authorization is for rejected registration, not an instruction to repeat the failed input test. Household wake MACs are matched to this installation's UUID. Wake is not marked confirmed merely because UDP was sent.
+
+Xiaomi: discover Google TV or enter hostname/IP, then enter the TV code. All available IPv4/IPv6 addresses, command port and reachable address persist. Network reachability is a prerequisite; no hard-coded Xiaomi host is used.
+
+Samsung: Set up soundbar → allow Bluetooth on Android 12+ → select the existing paired Samsung. Android stores the bond; MyRemote stores the selection and connects directly to the control service. Keep D.IN and close Samsung Audio Remote to avoid competing control sessions. No new Bluetooth scan/location permission, A2DP playback or generic AVRCP workaround is used. Forget removes MyRemote selection without removing the Android bond.
+
+Connections are active while the app is foreground and close in background. Source buttons use stable HDMI IDs. Watch yes+ selects HDMI 3; launching yes+ or waking it automatically is withheld until reliable. Global Xiaomi keys remain available on all sources. Volume/mute always targets Samsung. There is no Power Off All.
+
 ## Project map
 
-- `app/src/main/java/com/myremote/app/domain/`: device ports, actions, state, routing, and the yes+ Last Channel macro.
-- `app/src/main/java/com/myremote/app/google/`: NSD discovery, Keystore identity, pairing storage, TLS transport, connection lifecycle, and protocol codec.
-- `app/src/main/java/com/myremote/app/lg/`: SSDP discovery, webOS registration, pinned WebSocket transport, SSAP requests, input switching, and Wake-on-LAN.
-- `app/src/main/java/com/myremote/app/data/`: fake adapters for tests and previews.
-- `app/src/main/java/com/myremote/app/RemoteViewModel.kt`: UI to controller lifecycle and setup state.
-- `app/src/main/java/com/myremote/app/ui/`: dark Compose remote screen and theme.
-- `app/src/main/res/values-iw/`: Hebrew text; English is the default locale.
-- `docs/ARCHITECTURE.md`: architecture and integration plan.
-- `docs/DEVICE_VALIDATION.md`: observed hardware facts and open questions.
-- `docs/GOOGLE_TV_PROTOCOL.md`: wire behavior, security model, and references.
-- `docs/LG_WEBOS_PROTOCOL.md`: webOS discovery, registration, SSAP, power, and current limits.
+- domain/: intentions, typed failures, state, controller ports and macro routing.
+- lg/: SSDP, pairing storage, WSS/SSAP correlation, input strategy and wake.
+- google/: NSD, Keystore identity, persistent endpoints, TLS and Polo/protobuf.
+- samsung/: Bluetooth bond setup, RFCOMM transport, protocol and lifecycle.
+- network/: per-socket LAN selection and broadcast calculation.
+- diagnostics/: allowlisted structured events; no keys, codes, addresses or raw packets.
+- ui/ and values-iw/: one Compose remote/setup and Hebrew localization.
+- data/: fake adapters exclusively for development/tests/previews.
+- docs/: [architecture](docs/ARCHITECTURE.md), [hardware](docs/HARDWARE_SPECIFICATIONS.md), [device evidence](docs/DEVICE_VALIDATION.md), protocol references and [execution plan](docs/EXECUTION_PLAN.md).
 
-The app does not use ADB, developer mode, or Wireless Debugging. To set up Xiaomi, open **Set up Xiaomi**, select the discovered TV box or enter its host manually, then enter the six-character code shown on the TV. Pairing persists across app restarts. The first physical test found no Xiaomi through discovery and manual pairing failed at TCP connect; see [device validation](docs/DEVICE_VALIDATION.md).
-
-To set up LG, open **Set up LG TV**, select a discovered webOS TV or enter its address, then approve My Remote on the TV if asked. The client key, grant revision, and TV certificate pin remain in app-private storage. Only keys matching the current permission contract are reused. If LG authorization needs refresh, use **Refresh LG authorization** and approve a fresh TV request; this preserves the selected TV and certificate pin while retiring the old key. The source buttons query the TV's actual input IDs before switching. LG discovery uses SSDP and may not cross network isolation; manual host entry remains available. LG power-on sends Wake-on-LAN packets to the installation's saved wired and Wi-Fi MAC addresses and still needs physical validation.
+No push, tag or release has been performed.

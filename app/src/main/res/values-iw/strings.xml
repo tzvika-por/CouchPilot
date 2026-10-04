@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">השלט שלי</string>
     <string name="remote_title">השלט שלי</string>
-    <string name="demo_mode">השליטה במקרן הקול עדיין בהדמיה</string>
     <string name="configure_lg">הגדרת טלוויזיית LG</string>
     <string name="lg_setup">חיבור לטלוויזיית LG</string>
     <string name="lg_pairing_guidance">בחרו את טלוויזיית LG או הזינו את כתובתה. אשרו את בקשת החיבור שמופיעה בטלוויזיה.</string>
@@ -58,8 +57,20 @@
     <string name="back">חזרה</string>
     <string name="home">בית</string>
     <string name="play_pause">הפעלה / השהיה</string>
-    <string name="action_failed">הפעולה נכשלה: %1$s</string>
     <string name="lg_authorization_required">נדרש רענון הרשאות</string>
     <string name="lg_authorization_refresh_needed">יש לרענן את הרשאות LG. לחצו על רענון הרשאות LG ואשרו את הבקשה בטלוויזיה.</string>
     <string name="lg_refresh_authorization">רענון הרשאות LG</string>
+    <string name="rewind">הרצה אחורה</string>
+    <string name="fast_forward">הרצה קדימה</string>
+    <string name="samsung_setup">חיבור למקרן הקול</string>
+    <string name="samsung_guidance">בחרו את מקרן הקול של סמסונג שכבר מצומד לטלפון. הוא נשאר בחיבור האופטי D.IN. סגרו את Samsung Audio Remote בזמן השימוש בשלט.</string>
+    <string name="samsung_allow">אישור חיבור Bluetooth</string>
+    <string name="samsung_no_devices">לא נמצא מקרן קול מצומד של סמסונג. ודאו ש־Bluetooth פועל; ניתן להשתמש בצימוד הקיים.</string>
+    <string name="bluetooth_settings">הגדרות Bluetooth</string>
+    <string name="error_not_connected">המכשיר אינו מחובר. פתחו את הגדרות החיבור כדי להתחבר מחדש.</string>
+    <string name="error_permission">המכשיר לא אישר את הפעולה. ייתכן שהפקדים האחרים עדיין פועלים.</string>
+    <string name="error_network">לא ניתן להגיע למכשיר. בדקו את החיבור שלו ונסו שוב.</string>
+    <string name="error_security">לא ניתן לאמת את זהות המכשיר. פתחו את הגדרות החיבור לבדיקת הצימוד.</string>
+    <string name="error_unavailable">הפקד הזה אינו זמין כרגע במכשיר שנבחר.</string>
+    <string name="error_generic">לא ניתן להשלים את הפעולה. פתחו את הגדרות המכשיר כדי להתחבר מחדש.</string>
 </resources>

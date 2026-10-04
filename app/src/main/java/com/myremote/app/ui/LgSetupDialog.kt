@@ -84,7 +84,7 @@ fun LgSetupDialog(
                     Text(stringResource(R.string.lg_authorization_refresh_needed),
                         color = MaterialTheme.colorScheme.error)
                 } else {
-                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    error?.let { Text(failureText(null), color = MaterialTheme.colorScheme.error) }
                 }
                 OutlinedButton(onClick = onRefreshAuthorization,
                     enabled = connection != ConnectionState.PAIRING && connection != ConnectionState.CONNECTING,

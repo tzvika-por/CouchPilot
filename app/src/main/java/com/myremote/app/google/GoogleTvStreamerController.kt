@@ -36,7 +36,7 @@ import kotlinx.coroutines.withContext
 class GoogleTvStreamerController(context: Context) : StreamerController, AutoCloseable {
     private val appContext = context.applicationContext
     private val identity = AndroidClientIdentity()
-    private val sockets: GoogleTvSocketFactory = AndroidGoogleTvSocketFactory(identity)
+    private val sockets: GoogleTvSocketFactory = AndroidGoogleTvSocketFactory(identity, com.myremote.app.network.LanNetwork(appContext))
     private val store = PairingStore(appContext)
     val discovery: GoogleTvDiscovery = NsdGoogleTvDiscovery(appContext)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -107,6 +107,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
             val reply = ProtoWire.readFrame(session.socket.inputStream) ?: error("TV closed pairing connection")
             session.handshake.accept(reply)
             check(session.handshake.step == PairingHandshake.Step.COMPLETE)
+            currentCoroutineContext().ensureActive()
             store.save(session.device, AndroidClientIdentity.certificatePin(serverCertificate),
                 requireNotNull(session.socket.inetAddress.hostAddress))
             pairing = null
@@ -136,12 +137,13 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
                     store.rememberAddress(address)
                     device = device.copy(lastSuccessfulAddress = address)
                     activeSocket = socket
-                    runConnection(socket)
+                    runConnection(socket) { failures = 0 }
                     if (isActive) throw IllegalStateException("TV closed the connection")
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
                     if (!isActive) break
+                    com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "connection", "failed")
                     _error.value = error.message ?: "Connection failed"
                     _state.value = ConnectionState.DISCONNECTED
                 } finally {
@@ -173,12 +175,16 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
         _error.value = null
     }
 
-    private suspend fun runConnection(socket: SSLSocket) {
+    private suspend fun runConnection(socket: SSLSocket, onReady: () -> Unit) {
         val handshake = RemoteSessionHandshake()
-        while (scope.isActive && !socket.isClosed) {
+        while (currentCoroutineContext().isActive && !socket.isClosed) {
             val payload = ProtoWire.readFrame(socket.inputStream) ?: return
+            currentCoroutineContext().ensureActive()
             handshake.accept(RemoteProtocol.parse(payload))?.let { write(socket, it) }
             if (handshake.ready) {
+                if (_state.value != ConnectionState.CONNECTED)
+                    com.myremote.app.diagnostics.RemoteDiagnostics.record("google", "connection", "connected")
+                onReady()
                 _error.value = null
                 _state.value = ConnectionState.CONNECTED
             } else _state.value = ConnectionState.CONNECTING
@@ -198,7 +204,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
 
     private suspend fun inject(code: Int, long: Boolean) {
         val socket = activeSocket?.takeIf { _state.value == ConnectionState.CONNECTED && !it.isClosed }
-            ?: error("Xiaomi is not connected")
+            ?: throw com.myremote.app.domain.DeviceFailure(com.myremote.app.domain.FailureKind.NOT_CONNECTED, "Xiaomi is not connected")
         // Serialize an entire long press, including its hold, against other commands and pings.
         writeMutex.withLock {
             withContext(Dispatchers.IO) {
@@ -217,6 +223,13 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
     private fun fail(error: Exception) {
         _error.value = error.message ?: "Pairing failed"
         _state.value = ConnectionState.ERROR
+    }
+
+    fun pause() {
+        stopDiscovery()
+        cancelPairing()
+        disconnect()
+        _state.value = if (store.saved() == null) ConnectionState.NOT_CONFIGURED else ConnectionState.DISCONNECTED
     }
 
     override fun close() {

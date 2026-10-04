@@ -25,6 +25,14 @@ class ProtocolTest {
         assertThrows(EOFException::class.java) { ProtoWire.readFrame(ByteArrayInputStream(byteArrayOf(4, 1))) }
     }
 
+    @Test fun overflowingVarintIsRejectedAndUnknownFixedFieldsAreSkipped() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ProtoWire.readFrame(ByteArrayInputStream(ByteArray(9) { 0xff.toByte() } + byteArrayOf(2)))
+        }
+        val unknown = byteArrayOf(0x09) + ByteArray(8) + byteArrayOf(0x15) + ByteArray(4)
+        assertEquals(23L, ProtoWire.fields(unknown + ProtoWire.integer(3, 23)).number(3))
+    }
+
     @Test fun pairingTransitionsWaitForCodeAndSecretAck() {
         val handshake = PairingHandshake()
         handshake.request("My Remote")

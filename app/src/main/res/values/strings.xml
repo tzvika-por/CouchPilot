@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">My Remote</string>
     <string name="remote_title">My Remote</string>
-    <string name="demo_mode">Soundbar controls are simulated</string>
     <string name="configure_lg">Set up LG TV</string>
     <string name="lg_setup">LG TV connection</string>
     <string name="lg_pairing_guidance">Choose the LG TV or enter its address. Accept the connection request shown on the TV.</string>
@@ -58,8 +57,20 @@
     <string name="back">Back</string>
     <string name="home">Home</string>
     <string name="play_pause">Play / pause</string>
-    <string name="action_failed">Action failed: %1$s</string>
     <string name="lg_authorization_required">Authorization needs refresh</string>
     <string name="lg_authorization_refresh_needed">LG authorization needs to be refreshed. Tap Refresh LG authorization and approve the request on the TV.</string>
     <string name="lg_refresh_authorization">Refresh LG authorization</string>
+    <string name="rewind">Rewind</string>
+    <string name="fast_forward">Fast forward</string>
+    <string name="samsung_setup">Set up soundbar</string>
+    <string name="samsung_guidance">Select your paired Samsung soundbar. It stays on optical D.IN. Close Samsung Audio Remote while using My Remote.</string>
+    <string name="samsung_allow">Allow Bluetooth connection</string>
+    <string name="samsung_no_devices">No paired Samsung soundbar is available. Check Bluetooth is on; your existing pairing can be reused.</string>
+    <string name="bluetooth_settings">Bluetooth settings</string>
+    <string name="error_not_connected">The device is not connected. Open its setup to reconnect.</string>
+    <string name="error_permission">The device denied this action. Other controls may still work.</string>
+    <string name="error_network">The device could not be reached. Check its connection and try again.</string>
+    <string name="error_security">The device identity could not be verified. Open setup to review pairing.</string>
+    <string name="error_unavailable">This control is currently unavailable on the selected device.</string>
+    <string name="error_generic">The action could not be completed. Open device setup to reconnect.</string>
 </resources>

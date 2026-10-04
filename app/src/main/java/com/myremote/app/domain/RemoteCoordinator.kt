@@ -29,10 +29,15 @@ class RemoteCoordinator(
         return state
     }
 
+    fun updateSoundbarConnection(connectionState: ConnectionState): RemoteState {
+        state = state.copy(soundbarConnection = connectionState)
+        return state
+    }
+
     suspend fun dispatch(action: RemoteAction): RemoteState = actionMutex.withLock {
         try {
             execute(action)
-            state = state.copy(actionCount = state.actionCount + 1, errorMessage = null)
+            state = state.copy(actionCount = state.actionCount + 1, errorMessage = null, failure = null)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -40,6 +45,7 @@ class RemoteCoordinator(
                 tvConnection = if (tv.connectionState == ConnectionState.AUTHORIZATION_REQUIRED)
                     ConnectionState.AUTHORIZATION_REQUIRED else state.tvConnection,
                 errorMessage = error.message ?: error.javaClass.simpleName,
+                failure = failureKind(error),
             )
         }
         state

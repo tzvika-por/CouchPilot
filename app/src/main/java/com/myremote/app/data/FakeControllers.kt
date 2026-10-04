@@ -32,7 +32,7 @@ class FakeSoundbarController : SoundbarController {
     override val connectionState = ConnectionState.SIMULATED
     val events = mutableListOf<String>()
 
-    override fun volumeUp() { events += "volume:up" }
-    override fun volumeDown() { events += "volume:down" }
-    override fun mute() { events += "mute" }
+    override suspend fun volumeUp() { events += "volume:up" }
+    override suspend fun volumeDown() { events += "volume:down" }
+    override suspend fun mute() { events += "mute" }
 }

@@ -15,6 +15,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,6 +78,7 @@ fun GoogleTvSetupDialog(
                             Text("${device.name} · ${device.host}")
                         }
                     }
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     OutlinedTextField(
                         value = host,
                         onValueChange = { host = it },
@@ -82,6 +86,7 @@ fun GoogleTvSetupDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("manual_host"),
                     )
+                    }
                     Button(
                         onClick = { onManualHost(host) },
                         enabled = normalizedGoogleTvHost(host) != null,
@@ -92,7 +97,7 @@ fun GoogleTvSetupDialog(
                     Text(stringResource(R.string.please_wait))
                 }
                 if (connection == ConnectionState.CONNECTED) Text(stringResource(R.string.xiaomi_connected))
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                error?.let { Text(failureText(null), color = MaterialTheme.colorScheme.error) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onRetry, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.retry)) }
                     OutlinedButton(onClick = onForget, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.forget_pairing)) }

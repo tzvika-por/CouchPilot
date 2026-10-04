@@ -4,6 +4,10 @@ import android.content.Context
 import com.myremote.app.domain.ConnectionState
 import com.myremote.app.domain.InputSource
 import com.myremote.app.domain.TvController
+import com.myremote.app.domain.DeviceFailure
+import com.myremote.app.domain.FailureKind
+import com.myremote.app.diagnostics.RemoteDiagnostics
+import kotlinx.coroutines.withTimeout
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -31,7 +35,7 @@ class LgTvController internal constructor(
     private val wake: suspend (LgDevice) -> Unit,
 ) : TvController, AutoCloseable {
     constructor(context: Context) : this(
-        LgPairingStore(context), OkHttpLgTransportFactory(), SsdpLgDiscovery(context.applicationContext),
+        LgPairingStore(context), OkHttpLgTransportFactory(com.myremote.app.network.LanNetwork(context)), SsdpLgDiscovery(context.applicationContext),
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
         { device -> LgWakeOnLan.send(context.applicationContext, device.wakeMacs) },
     )
@@ -44,7 +48,7 @@ class LgTvController internal constructor(
     private var connectionJob: Job? = null
     @Volatile private var deliberateOff = false
     @Volatile private var session: LgSsapSession? = null
-    @Volatile private var inputIds: Set<String> = emptySet()
+    @Volatile private var inputs: List<LgInput> = emptyList()
 
     private fun savedState(): ConnectionState {
         val saved = store.read()
@@ -97,7 +101,7 @@ class LgTvController internal constructor(
         previous?.cancel()
         session?.close()
         session = null
-        inputIds = emptySet()
+        inputs = emptyList()
         _error.value = null
         connectionJob = scope.launch {
             withContext(NonCancellable) { previous?.join() }
@@ -130,16 +134,23 @@ class LgTvController internal constructor(
                     store.registered(registeredKey, current.certificatePin)
                     pairing = pairing.copy(clientKey = registeredKey, certificatePin = current.certificatePin)
                     session = current
-                    inputIds = LgProtocol.inputIds(current.request(LgProtocol.INPUT_LIST))
+                    // Endpoint denial must not discard a registration that still supports power off.
+                    inputs = try { LgProtocol.inputs(current.request(LgProtocol.INPUT_LIST)) }
+                    catch (error: LgAuthorizationException) {
+                        RemoteDiagnostics.record("lg", "input_list", "denied", error.errorCode)
+                        emptyList()
+                    }
                     _error.value = null
                     _state.value = ConnectionState.CONNECTED
                     failures = 0
+                    RemoteDiagnostics.record("lg", "connection", "connected")
                     current.awaitClosed()
                     throw IOException("LG connection closed")
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
                     if (!isActive) break
+                    RemoteDiagnostics.record("lg", "connection", "failed", (error as? LgAuthorizationException)?.errorCode)
                     terminalFailure = error is LgRegistrationException || error is LgAuthorizationException
                     if (error is LgAuthorizationException) {
                         store.clearAuthorization()
@@ -152,7 +163,7 @@ class LgTvController internal constructor(
                     }
                 } finally {
                     if (session === current) session = null
-                    inputIds = emptySet()
+                    inputs = emptyList()
                     current?.close()
                 }
                 if (deliberateOff || terminalFailure || (!retry && pairing.clientKey == null)) break
@@ -164,26 +175,33 @@ class LgTvController internal constructor(
 
     private suspend fun controlRequest(uri: String, payload: JSONObject? = null) {
         val active = session?.takeIf { _state.value == ConnectionState.CONNECTED }
-            ?: throw IOException("LG TV is not connected; set it up first")
+            ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "LG TV is not connected")
+        val operation = when (uri) {
+            LgProtocol.SWITCH_INPUT -> "switch_input"
+            LgProtocol.LAUNCH_INPUT -> "launch_input"
+            LgProtocol.TURN_OFF -> "power_off"
+            else -> "request"
+        }
         try {
             active.request(uri, payload)
+            RemoteDiagnostics.record("lg", operation, "accepted")
         } catch (error: LgAuthorizationException) {
-            if (session === active) {
-                store.clearAuthorization()
-                _state.value = ConnectionState.AUTHORIZATION_REQUIRED
-                _error.value = null
-                connectionJob?.cancel()
-                session = null
-                inputIds = emptySet()
-                active.close()
-            }
+            RemoteDiagnostics.record("lg", operation, "denied", error.errorCode)
+            // A command's denial is a capability failure. Registration and other commands remain valid.
             throw error
         }
     }
 
     override suspend fun switchInput(source: InputSource) {
-        val id = LgProtocol.matchingInput(source, inputIds)
-        controlRequest(LgProtocol.SWITCH_INPUT, JSONObject().put("inputId", id))
+        val input = inputs.firstOrNull { it.id.equals(source.webOsId, ignoreCase = true) }
+            ?: throw DeviceFailure(FailureKind.UNAVAILABLE, "TV did not report this input")
+        try {
+            controlRequest(LgProtocol.SWITCH_INPUT, JSONObject().put("inputId", input.id))
+        } catch (denied: LgAuthorizationException) {
+            val appId = input.appId ?: throw denied
+            // Use only the TV's reported app ID; never invent an HDMI application ID or switch labels.
+            controlRequest(LgProtocol.LAUNCH_INPUT, JSONObject().put("id", appId))
+        }
     }
 
     override suspend fun powerOff() {
@@ -195,8 +213,23 @@ class LgTvController internal constructor(
 
     override suspend fun powerOn() = withContext(Dispatchers.IO) {
         val device = store.read()?.device ?: throw IOException("Set up the LG TV first")
-        wake(device)
-        retry()
+        _state.value = ConnectionState.CONNECTING
+        try {
+            wake(device)
+            retry()
+            // Sending UDP is not evidence of wake. Confirm registered connectivity within a bounded window.
+            withTimeout(45_000) {
+                while (_state.value != ConnectionState.CONNECTED) {
+                    if (_state.value == ConnectionState.AUTHORIZATION_REQUIRED || _state.value == ConnectionState.ERROR)
+                        throw DeviceFailure(FailureKind.UNAVAILABLE, "LG wake connection failed")
+                    delay(250)
+                }
+            }
+        } catch (error: Exception) {
+            if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) throw error
+            _state.value = ConnectionState.DISCONNECTED
+            throw DeviceFailure(FailureKind.NETWORK, "LG wake was not confirmed", error)
+        }
     }
 
     fun forgetPairing() {
@@ -204,7 +237,7 @@ class LgTvController internal constructor(
         previous?.cancel()
         session?.close()
         session = null
-        inputIds = emptySet()
+        inputs = emptyList()
         connectionJob = scope.launch {
             withContext(NonCancellable) { previous?.join() }
             currentCoroutineContext().ensureActive()
@@ -212,6 +245,14 @@ class LgTvController internal constructor(
             _state.value = ConnectionState.NOT_CONFIGURED
             _error.value = null
         }
+    }
+
+    fun pause() {
+        stopDiscovery()
+        connectionJob?.cancel()
+        session?.close(); session = null
+        inputs = emptyList()
+        if (_state.value != ConnectionState.AUTHORIZATION_REQUIRED) _state.value = savedState()
     }
 
     override fun close() {

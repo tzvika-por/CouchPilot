@@ -1,6 +1,17 @@
 package com.myremote.app
 
 import android.os.Bundle
+import android.Manifest
+import android.os.Build
+import android.content.Intent
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.myremote.app.ui.SamsungSetupDialog
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -16,6 +27,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val remote: RemoteViewModel = viewModel()
+            val lifecycle = LocalLifecycleOwner.current.lifecycle
+            DisposableEffect(remote, lifecycle) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_START) remote.startConnections()
+                    if (event == Lifecycle.Event.ON_STOP) remote.stopConnections()
+                }
+                lifecycle.addObserver(observer)
+                onDispose { lifecycle.removeObserver(observer); remote.stopConnections() }
+            }
+            val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                remote.refreshSoundbarDevices()
+            }
+            val hasBluetoothPermission by remote.bluetoothPermission.collectAsStateWithLifecycle()
+            val soundbarSetup by remote.soundbarSetupVisible.collectAsStateWithLifecycle()
+            val soundbarDevices by remote.soundbarDevices.collectAsStateWithLifecycle()
+            val soundbarConnection by remote.soundbarState.collectAsStateWithLifecycle()
+            val soundbarError by remote.soundbarError.collectAsStateWithLifecycle()
             val state by remote.remoteState.collectAsStateWithLifecycle()
             val devices by remote.discoveredDevices.collectAsStateWithLifecycle()
             val connection by remote.streamerState.collectAsStateWithLifecycle()
@@ -29,7 +57,19 @@ class MainActivity : ComponentActivity() {
             val lgDiscoveryError by remote.lgDiscoveryError.collectAsStateWithLifecycle()
             RemoteTheme {
                 RemoteScreen(state = state, onAction = remote::dispatch,
-                    onConfigureXiaomi = remote::openSetup, onConfigureLg = remote::openLgSetup)
+                    onConfigureXiaomi = remote::openSetup, onConfigureLg = remote::openLgSetup,
+                    onConfigureSamsung = remote::openSoundbarSetup)
+                if (soundbarSetup) SamsungSetupDialog(
+                    devices = soundbarDevices, connection = soundbarConnection, error = soundbarError,
+                    hasPermission = hasBluetoothPermission,
+                    onPermission = {
+                        if (Build.VERSION.SDK_INT >= 31) bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        else remote.refreshSoundbarDevices()
+                    },
+                    onDevice = remote::selectSoundbar, onRetry = remote::refreshSoundbarDevices,
+                    onSettings = { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },
+                    onForget = remote::forgetSoundbar, onDismiss = remote::closeSoundbarSetup,
+                )
                 if (setupVisible) GoogleTvSetupDialog(
                     devices = devices,
                     connection = connection,

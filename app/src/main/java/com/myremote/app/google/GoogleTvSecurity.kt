@@ -19,14 +19,16 @@ import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
 
 /** Only endpoint details and the public certificate pin are in preferences. Private key stays in Android Keystore. */
-internal class PairingStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences("google_tv_pairing", Context.MODE_PRIVATE)
+internal class PairingStore(private val prefs: android.content.SharedPreferences) {
+    constructor(context: Context) : this(context.applicationContext.getSharedPreferences("google_tv_pairing", Context.MODE_PRIVATE))
 
     fun saved(): SavedPairing? {
         val host = prefs.getString("host", null) ?: return null
         val pin = prefs.getString("pin", null) ?: return null
         return SavedPairing(GoogleTvDevice(
             prefs.getString("name", host) ?: host, host, prefs.getInt("port", 6466),
+            resolvedAddresses = prefs.getString("addresses", "").orEmpty().split(',').filter(String::isNotBlank)
+                .mapNotNull { address -> runCatching { java.net.InetAddress.getByName(address) }.getOrNull() },
             lastSuccessfulAddress = prefs.getString("last_address", null),
         ), pin)
     }
@@ -34,6 +36,7 @@ internal class PairingStore(context: Context) {
     fun save(device: GoogleTvDevice, pin: String, connectedAddress: String) {
         check(prefs.edit().putString("host", device.host).putString("name", device.name)
             .putInt("port", device.port).putString("pin", pin)
+            .putString("addresses", device.resolvedAddresses.mapNotNull { it.hostAddress }.joinToString(","))
             .putString("last_address", connectedAddress).commit()) { "Could not save pairing" }
     }
 
@@ -84,21 +87,7 @@ internal class AndroidClientIdentity {
     // and every later connection requires the saved SHA-256 pin. This context is app-local.
     @SuppressLint("CustomX509TrustManager")
     fun context(expectedPin: String?): SSLContext {
-        val trust = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>?, authType: String?) = Unit
-            override fun checkServerTrusted(chain: Array<X509Certificate>?, authType: String?) {
-                val cert = chain?.singleOrNull() ?: throw java.security.cert.CertificateException("Expected one TV certificate")
-                cert.checkValidity()
-                if (cert.publicKey.algorithm != "RSA") throw java.security.cert.CertificateException("Expected RSA TV certificate")
-                if (expectedPin == null) {
-                    // Initial pairing authenticates this certificate with the TV's one-time code.
-                    cert.verify(cert.publicKey)
-                } else if (certificatePin(cert) != expectedPin) {
-                    throw java.security.cert.CertificateException("TV certificate changed; pair again")
-                }
-            }
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
+        val trust = GoogleTvTrustManager(expectedPin)
         return SSLContext.getInstance("TLS").apply { init(arrayOf(keyManager), arrayOf<TrustManager>(trust), null) }
     }
 
@@ -112,15 +101,18 @@ internal interface GoogleTvSocketFactory {
     fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket
 }
 
-internal class AndroidGoogleTvSocketFactory(private val identity: AndroidClientIdentity) : GoogleTvSocketFactory {
+internal class AndroidGoogleTvSocketFactory(private val identity: AndroidClientIdentity, private val lan: com.myremote.app.network.LanNetwork) : GoogleTvSocketFactory {
     override fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket {
         val factory = identity.context(serverPin).socketFactory
+        val network = lan.selected(device.network)
         val addresses = GoogleTvAddresses.candidates(
             device.host, device.resolvedAddresses, device.lastSuccessfulAddress,
+            resolve = { host -> (network?.getAllByName(host) ?: java.net.InetAddress.getAllByName(host)).toList() },
         )
         val socket = GoogleTvAddresses.firstConnected(addresses) { address ->
             val candidate = factory.createSocket() as SSLSocket
             try {
+                network?.bindSocket(candidate)
                 candidate.soTimeout = 15_000
                 candidate.connect(java.net.InetSocketAddress(address, port), 8_000)
                 candidate

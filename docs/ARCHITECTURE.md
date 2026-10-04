@@ -1,32 +1,33 @@
 # Architecture
 
-The app has one Android application module. `RemoteScreen` renders `RemoteState` and emits `RemoteAction`; it has no protocol calls. `RemoteViewModel` owns the LG and Xiaomi controllers and their setup flows. `RemoteCoordinator` routes each action to `TvController`, `StreamerController`, or `SoundbarController`. LG uses `LgTvController`, Xiaomi uses `GoogleTvStreamerController`, and the soundbar still uses an in-memory adapter. Fake TV, streamer, and soundbar controllers remain available to tests and previews.
+One Android module with three production adapters. Compose emits RemoteAction, RemoteCoordinator routes intentions, and adapters own discovery, registration, credentials, transport, protocol and lifecycle. Fakes remain in data/ for tests/previews; none is instantiated by production RemoteViewModel.
 
-## Action routing
+| Area | Components |
+|---|---|
+| Product | domain/Controllers, RemoteModels, RemoteCoordinator, DeviceFailure |
+| LG | SSDP, LgPairingStore, LgSsapSession/LgRequests, pinned WSS transport, LgTvController, WOL |
+| Xiaomi | NSD, private pairing store, Android Keystore identity, TLS/pins, protobuf/Polo codec, streamer controller |
+| Samsung | paired-bond selector, RFCOMM factory, SamsungProtocol, SamsungSession, SamsungSoundbarController |
+| Networking | LanNetwork: socket-local non-VPN Wi-Fi/Ethernet selection, network DNS and prefix-directed broadcasts |
+| Observability | RemoteDiagnostics bounded ring and Android structured logs with allowlisted metadata |
+| UI | one dark remote, localizable setup/status for all devices, Hebrew/RTL, meaningful error text |
 
-| User action | Domain behavior | Adapter |
-|---|---|---|
-| Select PS5, Mac mini, Xiaomi, PC | Switch to HDMI 1, 2, 3, 4 respectively | TV |
-| Watch yes+ | Select HDMI 3 and make Xiaomi active | TV |
-| Power | Toggle the selected controllable device: Xiaomi for HDMI 3, LG TV for other inputs | TV or streamer |
-| Volume and mute | Control Samsung soundbar | Soundbar |
-| D-pad, OK, Back, Home, Play/Pause, digits, channels | Send streamer key | Streamer |
-| Last Channel | Send long CENTER, then short CENTER in order | Streamer |
+## Product routing
 
-The first Watch yes+ action intentionally only selects HDMI 3. Waking Xiaomi or launching yes+ will be added after those production capabilities are validated. Selecting PS5, Mac mini, or PC makes the TV the active *controllable* device because this app has no controller for those sources. Xiaomi navigation remains available even while another input is selected.
+Sources PS5/Mac mini/Xiaomi/PC map to reported HDMI_1/2/3/4. Activity selection changes only after accepted input control. Xiaomi becomes active for HDMI 3, otherwise TV. Global D-pad/media/digits/channels always target Xiaomi regardless of source. Last Channel is serialized long CENTER then short CENTER in domain logic; Compose exposes one button. Rewind and fast-forward now appear on the main remote.
 
-Power state is not read from hardware. When the LG connection is absent, its Power action takes the Wake-on-LAN path; when connected, it sends power off. LG and Xiaomi connection indicators report their transport states; the soundbar indicator says “Simulated.” LG and Xiaomi sleep/wake behavior remains unverified on physical hardware.
+Watch yes+ currently selects HDMI 3 without guessing an app ID or claiming wake/launch. LG Power uses connectivity to choose off vs confirmed reconnection wake; Xiaomi uses SLEEP/WAKEUP on a connected channel. Individual power limitations are documented; there is no Power Off All. Sound always targets Samsung's RFCOMM control service, never a production fake or generic AVRCP. Samsung power is withheld because toggle/standby state is not trustworthy.
 
-## LG webOS boundary
+## Lifetimes, networking and trust
 
-`SsdpLgDiscovery` runs a bounded M-SEARCH for the LG second-screen service, fetches same-host UPnP description metadata where available, and releases its socket and multicast lock on stop. The setup dialog shows discovered identity and supports manual host entry. `LgTvController` implements suspendable `TvController`, owns registration and connection state, and keeps one `LgSsapSession` at a time. `OkHttpLgTransportFactory` handles the pinned `wss://` connection; `LgRequests` correlates concurrent SSAP replies by ID. The controller requests the external input list after registration and switches by the TV's `HDMI_1`–`HDMI_4` IDs. `LgPairingStore` persists the host, identity, client key, authorization revision, certificate pin, and wake MAC configuration in app-private preferences with backup disabled. `LgInstallation` holds this household's known MACs outside reusable protocol code. Wake-on-LAN packet generation is separate from the controller.
+ViewModel owns controllers. Lifecycle START reconnects stored selections, STOP closes discovery, pairing and connection resources, and ViewModel clear disposes scopes. LAN selection affects sockets only; it does not change router, Wi-Fi or Tailscale settings. Discovered Google TV Network is preferred if still a usable LAN. All NSD addresses and last-success address persist; dynamic Network handles do not. Generation checks prevent callbacks from an earlier stopped discovery changing a later run.
 
-Unversioned/outdated keys are withheld pending explicit authorization refresh. A 401 becomes a typed authorization failure, clears the grant, closes the session, and enters `AUTHORIZATION_REQUIRED` without a reconnect loop. The setup UI offers Refresh LG authorization; it retires only the grant and reconnects for fresh approval while retaining identity, wake configuration, and the TLS pin. Connection job cancellation is awaited before resetting or writing pairing data.
+LG and Google TV trust managers are app-local; persisted pins reject identity changes. Google private RSA key stays in Android Keystore. LG keys and selected endpoints are app-private preferences excluded from backup. Samsung pairing remains Android's bond; only selected address persists. No credentials/pairing codes are logged. Local SSAP and Google TV protocol logic stay outside Compose.
 
-Constructor-injected storage, transport, discovery, coroutine scope, and wake action let deterministic controller tests exercise registration and denial recovery without Android hardware. See [LG_WEBOS_PROTOCOL.md](LG_WEBOS_PROTOCOL.md).
+Registration-level LG 401 requires authorization recovery. Command-level 401 keeps the working grant, records operation/code and returns a typed failure. Input fallback uses only the TV-reported appId through launcher; a transport timeout is never retried as another state-changing command. Samsung queries serialize because packets have no request IDs; a timeout closes the stream. Status validates connectivity but does not establish physical volume change.
 
-## Google TV boundary
+## Errors and verification
 
-`GoogleTvStreamerController` implements the suspendable `StreamerController` port. `NsdGoogleTvDiscovery` handles service discovery and retains all resolved addresses; on Android 16+ it also retains the advertised service hostname. `AndroidClientIdentity` creates and keeps the TLS client private key in Android Keystore. `PairingStore` keeps the selected hostname, command port, last reachable address, and server certificate pin. The socket adapter tries resolved IPv4 and IPv6 addresses for TCP connection before TLS, then validates the certificate pin. The protocol package handles pairing state, varint framing, key mapping, long press, and reconnect timing without Android UI dependencies. `RemoteCoordinator` retains the one-action yes+ Last Channel macro; the adapter expands a long press into START_LONG, hold, END_LONG before the coordinator sends short CENTER.
+DeviceFailure/FailureKind carry typed failures; the UI maps them to localized recovery text rather than raw protocol strings. RemoteDiagnostics accepts only fixed device categories, bounded operation/outcome identifiers and numeric codes, keeping the last 100 events. Packet bodies, keys, pins, hosts and Bluetooth addresses are not accepted by the logger. Setup errors are also redacted.
 
-The controller owns an IO coroutine scope and one active TLS socket. It answers configure/active/ping messages, reports Connected after RemoteStart, and reconnects with bounded exponential delay. Closing the ViewModel closes discovery, pairing, connection, and coroutine resources. Protocol unit tests run without hardware. See [GOOGLE_TV_PROTOCOL.md](GOOGLE_TV_PROTOCOL.md) for message and security details.
+Tests include domain routing/macros, protocol vectors, stream framing, stored identity/endpoints, controller state/backoff, real local UDP, IPv4 refusal to IPv6 fallback, real IPv6 TLS and pin rejection, real LG WSS fake server and Compose interaction/RTL/privacy. An emulator validates UI/runtime only; physical radio, real TV authorization and actual sound/image changes remain device facts. See DEVICE_VALIDATION.md and protocol docs for evidence categories.

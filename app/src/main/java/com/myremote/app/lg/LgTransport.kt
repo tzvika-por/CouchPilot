@@ -28,24 +28,35 @@ internal interface LgTransportFactory {
 }
 
 /** A TV-specific WSS client. First approval pins the self-signed certificate; later connections require that pin. */
-internal class OkHttpLgTransportFactory : LgTransportFactory {
+internal class OkHttpLgTransportFactory(private val lan: com.myremote.app.network.LanNetwork? = null, private val port: Int = 3001) : LgTransportFactory {
     @SuppressLint("CustomX509TrustManager", "TrustAllX509TrustManager")
     override suspend fun connect(host: String, expectedPin: String?): LgTransport {
         val trust = LgTvTrustManager(expectedPin)
         val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
-        val client = OkHttpClient.Builder()
+        val network = lan?.selected()
+        val builder = OkHttpClient.Builder()
             .sslSocketFactory(ssl.socketFactory, trust)
             .hostnameVerifier { _, _ -> true } // LG uses a self-signed LAN certificate; the pin is checked above.
             .connectTimeout(8, TimeUnit.SECONDS)
+            .pingInterval(15, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
-            .build()
+        if (network != null) builder.socketFactory(network.socketFactory)
+            .dns(object : okhttp3.Dns {
+                override fun lookup(hostname: String): List<java.net.InetAddress> = network.getAllByName(hostname).toList()
+            })
+        val client = builder.build()
         val endpoint = if (':' in host && !host.startsWith("[")) "[$host]" else host
         val opened = CompletableDeferred<Unit>()
-        val incoming = Channel<String>(Channel.UNLIMITED)
-        val socket = client.newWebSocket(Request.Builder().url("wss://$endpoint:3001/").build(),
+        val incoming = Channel<String>(64)
+        val socket = client.newWebSocket(Request.Builder().url("wss://$endpoint:$port/").build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) { opened.complete(Unit) }
-                override fun onMessage(webSocket: WebSocket, text: String) { incoming.trySend(text) }
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    if (text.length > 65_536 || incoming.trySend(text).isFailure) {
+                        incoming.close(IOException("LG response limit exceeded"))
+                        webSocket.cancel()
+                    }
+                }
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     opened.completeExceptionally(IOException("LG WebSocket closed during connection"))
                     incoming.close()

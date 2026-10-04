@@ -15,6 +15,7 @@ data class GoogleTvDevice(
     val port: Int = 6466,
     val resolvedAddresses: List<InetAddress> = emptyList(),
     val lastSuccessfulAddress: String? = null,
+    val network: android.net.Network? = null,
 ) {
     val pairingPort: Int get() = 6467
 }
@@ -35,30 +36,39 @@ class NsdGoogleTvDiscovery(context: Context) : GoogleTvDiscovery {
     override val devices: StateFlow<List<GoogleTvDevice>> = _devices
     private val _error = MutableStateFlow<String?>(null)
     override val error: StateFlow<String?> = _error
-    private val pending = ArrayDeque<NsdServiceInfo>()
+    private val pending = ArrayDeque<Pair<NsdServiceInfo, DiscoveryRun.Token>>()
+    private val run = DiscoveryRun()
     private var resolving = false
     private var active = false
+    private var discoveryListener: NsdManager.DiscoveryListener? = null
     private var lock: WifiManager.MulticastLock? = null
 
-    private val discoveryListener = object : NsdManager.DiscoveryListener {
+    private fun listener(runId: Int) = object : NsdManager.DiscoveryListener {
         override fun onDiscoveryStarted(serviceType: String) = Unit
         override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-            _error.value = "Discovery failed ($errorCode); enter the host manually"
-            stop()
+            synchronized(this@NsdGoogleTvDiscovery) {
+                if (!run.current(runId) || !active) return
+                _error.value = "Discovery failed ($errorCode); enter the host manually"
+                stop()
+            }
         }
         override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-            _error.value = "Could not stop discovery ($errorCode)"
+            if (run.current(runId)) _error.value = "Could not stop discovery ($errorCode)"
         }
         override fun onDiscoveryStopped(serviceType: String) = Unit
         override fun onServiceFound(serviceInfo: NsdServiceInfo) {
             synchronized(this@NsdGoogleTvDiscovery) {
-                if (!active) return
-                pending.addLast(serviceInfo)
+                if (!active || !run.current(runId)) return
+                val token = run.found(runId, serviceInfo.serviceName) ?: return
+                pending.addLast(serviceInfo to token)
                 resolveNext()
             }
         }
         override fun onServiceLost(serviceInfo: NsdServiceInfo) {
             synchronized(this@NsdGoogleTvDiscovery) {
+                if (!active || !run.current(runId)) return
+                run.lost(runId, serviceInfo.serviceName)
+                pending.removeAll { it.first.serviceName == serviceInfo.serviceName }
                 _devices.value = _devices.value.filterNot { it.name == serviceInfo.serviceName }
             }
         }
@@ -69,14 +79,16 @@ class NsdGoogleTvDiscovery(context: Context) : GoogleTvDiscovery {
         _devices.value = emptyList()
         _error.value = null
         active = true
+        discoveryListener = listener(run.start())
         lock = wifi.createMulticastLock("MyRemoteGoogleTvDiscovery").apply {
             setReferenceCounted(false)
             acquire()
         }
         try {
-            nsd.discoverServices("_androidtvremote2._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+            nsd.discoverServices("_androidtvremote2._tcp.", NsdManager.PROTOCOL_DNS_SD, requireNotNull(discoveryListener))
         } catch (error: Exception) {
             active = false
+            run.stop()
             lock?.release()
             lock = null
             _error.value = error.message ?: "Discovery unavailable"
@@ -87,16 +99,19 @@ class NsdGoogleTvDiscovery(context: Context) : GoogleTvDiscovery {
     @Synchronized override fun stop() {
         if (!active) return
         active = false
+        run.stop()
         pending.clear()
         resolving = false
-        runCatching { nsd.stopServiceDiscovery(discoveryListener) }
+        discoveryListener?.let { owned -> runCatching { nsd.stopServiceDiscovery(owned) } }
+        discoveryListener = null
         lock?.release()
         lock = null
     }
 
     @Synchronized private fun resolveNext() {
         if (!active || resolving || pending.isEmpty()) return
-        val info = pending.removeFirst()
+        val (info, token) = pending.removeFirst()
+        val runId = token.generation
         resolving = true
         @Suppress("DEPRECATION")
         try { nsd.resolveService(info, object : NsdManager.ResolveListener {
@@ -113,12 +128,13 @@ class NsdGoogleTvDiscovery(context: Context) : GoogleTvDiscovery {
                 } else null
                 val endpoint = host ?: addresses.firstOrNull()?.hostAddress
                 finish(endpoint?.let {
-                    GoogleTvDevice(serviceInfo.serviceName, it, serviceInfo.port, addresses)
+                    GoogleTvDevice(serviceInfo.serviceName, it, serviceInfo.port, addresses, network = if (Build.VERSION.SDK_INT >= 33) serviceInfo.network else null)
                 })
             }
             private fun finish(device: GoogleTvDevice?) {
                 synchronized(this@NsdGoogleTvDiscovery) {
-                    if (active && device != null) {
+                    if (!active || !run.current(runId)) return
+                    if (device != null && run.accepts(info.serviceName, token)) {
                         _devices.value = _devices.value.filterNot { it.name == device.name } + device
                     }
                     resolving = false

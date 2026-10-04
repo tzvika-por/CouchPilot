@@ -21,61 +21,41 @@ import org.junit.Test
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class LgAuthorizationTest {
-    @Test fun deniedInputStopsReconnectAndRefreshRetainsPinButOmitsOldKey() = runTest {
+    @Test fun deniedInputRetainsWorkingGrantAndPowerControl() = runTest {
         val fixture = fixture(LgProtocol.SWITCH_INPUT)
-        val controller = fixture.controller
-        controller.connectStored()
+        fixture.controller.connectStored()
         runCurrent()
-        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
-        try { controller.switchInput(InputSource.XIAOMI); fail("Expected permission denial") }
+        try { fixture.controller.switchInput(InputSource.XIAOMI); fail("Expected permission denial") }
         catch (error: LgAuthorizationException) { assertEquals(401, error.errorCode) }
-        runCurrent()
-        assertEquals(ConnectionState.AUTHORIZATION_REQUIRED, controller.connectionState)
-        assertNull(controller.error.value)
-        assertNull(fixture.store.read()!!.clientKey)
-        assertTrue(fixture.store.read()!!.authorizationNeedsRefresh)
-        assertTrue(fixture.transports.single().closed)
-        controller.startDiscovery()
-        controller.stopDiscovery()
-        controller.retry()
-        runCurrent()
-        advanceTimeBy(120_000)
-        runCurrent()
-        assertEquals(1, fixture.transports.size)
-        assertEquals(ConnectionState.AUTHORIZATION_REQUIRED, controller.connectionState)
-
-        controller.refreshAuthorization()
-        runCurrent()
-        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
-        val registration = fixture.transports.last().sent.map(::JSONObject).single { it.getString("type") == "register" }
-        assertFalse(registration.getJSONObject("payload").has("client-key"))
-        assertEquals(listOf("trusted-pin", "trusted-pin"), fixture.expectedPins)
-        assertEquals("key-2", fixture.store.read()!!.clientKey)
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        assertEquals("key-1", fixture.store.read()!!.clientKey)
         assertFalse(fixture.store.read()!!.authorizationNeedsRefresh)
-        controller.switchInput(InputSource.XIAOMI)
-        val command = fixture.transports.last().sent.map(::JSONObject).last()
-        assertEquals("ssap://tv/switchInput", command.getString("uri"))
-        assertEquals("HDMI_3", command.getJSONObject("payload").getString("inputId"))
-        controller.close()
+        assertFalse(fixture.transports.single().closed)
+        fixture.controller.powerOff()
+        assertEquals(ConnectionState.DISCONNECTED, fixture.controller.connectionState)
+        fixture.controller.close()
     }
 
-    @Test fun legacyGrantWaitsForExplicitRefreshWithoutConnecting() = runTest {
+    @Test fun deniedSwitchUsesOnlyReportedInputAppIdWithoutPairingAgain() = runTest {
+        val fixture = fixture(LgProtocol.SWITCH_INPUT, inputAppId = "reported.hdmi.app")
+        fixture.controller.connectStored(); runCurrent()
+        fixture.controller.switchInput(InputSource.XIAOMI)
+        val request = JSONObject(fixture.transports.single().sent.last())
+        assertEquals(LgProtocol.LAUNCH_INPUT, request.getString("uri"))
+        assertEquals("reported.hdmi.app", request.getJSONObject("payload").getString("id"))
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        assertEquals(1, fixture.transports.size)
+        fixture.controller.close()
+    }
+
+    @Test fun legacyGrantIsReusedWithoutForcingApprovalForManifestRevision() = runTest {
         val fixture = fixture()
         fixture.preferences.edit().remove("authorization_revision").commit()
+        fixture.controller.connectStored(); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        val registration = JSONObject(fixture.transports.single().sent.first { JSONObject(it).getString("type") == "register" })
+        assertEquals("old-key", registration.getJSONObject("payload").getString("client-key"))
         fixture.controller.close()
-        val controller = controller(fixture.store, fixture.factory)
-        assertEquals(ConnectionState.AUTHORIZATION_REQUIRED, controller.connectionState)
-        controller.connectStored()
-        controller.retry()
-        runCurrent()
-        assertTrue(fixture.transports.isEmpty())
-        controller.refreshAuthorization()
-        runCurrent()
-        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
-        assertFalse(JSONObject(fixture.transports.single().sent.first { JSONObject(it).getString("type") == "register" })
-            .getJSONObject("payload").has("client-key"))
-        assertEquals(listOf("trusted-pin"), fixture.expectedPins)
-        controller.close()
     }
 
     @Test fun refreshDuringRegistrationCancelsOldJobBeforeSavingNewGrant() = runTest {
@@ -94,12 +74,12 @@ class LgAuthorizationTest {
         fixture.controller.close()
     }
 
-    @Test fun inputEnumeration401RequiresRefreshWithoutRetryLoop() = runTest {
+    @Test fun inputEnumeration401RetainsRegistrationWithoutRetryLoop() = runTest {
         val fixture = fixture(LgProtocol.INPUT_LIST)
         fixture.controller.connectStored()
         runCurrent()
-        assertEquals(ConnectionState.AUTHORIZATION_REQUIRED, fixture.controller.connectionState)
-        assertNull(fixture.store.read()!!.clientKey)
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        assertEquals("key-1", fixture.store.read()!!.clientKey)
         advanceTimeBy(120_000)
         runCurrent()
         assertEquals(1, fixture.transports.size)
@@ -116,15 +96,15 @@ class LgAuthorizationTest {
         fixture.controller.close()
     }
 
-    @Test fun powerOff401AlsoRequiresRefresh() = runTest {
+    @Test fun powerOff401RetainsRegistration() = runTest {
         val fixture = fixture(LgProtocol.TURN_OFF)
         fixture.controller.connectStored()
         runCurrent()
         try { fixture.controller.powerOff(); fail("Expected permission denial") }
         catch (_: LgAuthorizationException) { }
         runCurrent()
-        assertEquals(ConnectionState.AUTHORIZATION_REQUIRED, fixture.controller.connectionState)
-        assertTrue(fixture.store.read()!!.authorizationNeedsRefresh)
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        assertFalse(fixture.store.read()!!.authorizationNeedsRefresh)
         fixture.controller.close()
     }
 
@@ -137,7 +117,7 @@ class LgAuthorizationTest {
         }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), {},
     )
 
-    private fun TestScope.fixture(deniedUri: String? = null, pauseRegistration: Boolean = false): Fixture {
+    private fun TestScope.fixture(deniedUri: String? = null, pauseRegistration: Boolean = false, inputAppId: String? = null): Fixture {
         val prefs = LgPairingStoreTest.MemoryPreferences()
         val store = LgPairingStore(prefs)
         store.select(LgDevice("LG", "192.0.2.8", wakeMacs = listOf("02:00:00:00:00:03")))
@@ -149,7 +129,7 @@ class LgAuthorizationTest {
                 assertEquals("192.0.2.8", host)
                 pins += expectedPin
                 return ScriptedTransport("key-${transports.size + 1}", deniedUri.takeIf { transports.isEmpty() },
-                    pauseRegistration && transports.isEmpty())
+                    pauseRegistration && transports.isEmpty(), inputAppId)
                     .also { transports += it }
             }
         }
@@ -163,7 +143,7 @@ class LgAuthorizationTest {
     )
 
     private class ScriptedTransport(
-        private val key: String, private val deniedUri: String?, private val pauseRegistration: Boolean,
+        private val key: String, private val deniedUri: String?, private val pauseRegistration: Boolean, private val inputAppId: String?,
     ) : LgTransport {
         override val certificatePin = "trusted-pin"
         val sent = mutableListOf<String>()
@@ -181,7 +161,9 @@ class LgAuthorizationTest {
                 "register" -> if (!pauseRegistration) incoming.send("""{"type":"registered","id":"$id","payload":{"client-key":"$key"}}""")
                 "request" -> {
                     val payload = if (message.optString("uri") == LgProtocol.INPUT_LIST)
-                        """{"returnValue":true,"devices":[{"id":"HDMI_2"},{"id":"HDMI_3"}]}"""
+                        JSONObject().put("returnValue", true).put("devices", org.json.JSONArray()
+                            .put(JSONObject().put("id", "HDMI_2"))
+                            .put(JSONObject().put("id", "HDMI_3").apply { if (inputAppId != null) put("appId", inputAppId) })).toString()
                     else """{"returnValue":true}"""
                     incoming.send("""{"type":"response","id":"$id","payload":$payload}""")
                 }

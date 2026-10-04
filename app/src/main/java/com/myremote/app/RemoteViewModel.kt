@@ -3,7 +3,9 @@ package com.myremote.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.myremote.app.data.FakeSoundbarController
+import com.myremote.app.samsung.SamsungSoundbarController
+import com.myremote.app.samsung.SamsungBluetooth
+import com.myremote.app.samsung.SamsungDevice
 import com.myremote.app.domain.RemoteAction
 import com.myremote.app.domain.RemoteCoordinator
 import com.myremote.app.google.GoogleTvDevice
@@ -20,7 +22,18 @@ import kotlinx.coroutines.Job
 class RemoteViewModel(application: Application) : AndroidViewModel(application) {
     private val tv = LgTvController(application)
     private val streamer = GoogleTvStreamerController(application)
-    private val coordinator = RemoteCoordinator(tv, streamer, FakeSoundbarController())
+    private val soundbar = SamsungSoundbarController(application)
+    val bluetooth = SamsungBluetooth(application)
+    private val _bluetoothPermission = MutableStateFlow(bluetooth.hasPermission())
+    val bluetoothPermission = _bluetoothPermission.asStateFlow()
+    private val actionJobs = mutableSetOf<Job>()
+    val soundbarState = soundbar.state
+    val soundbarError = soundbar.error
+    private val _soundbarDevices = MutableStateFlow<List<SamsungDevice>>(emptyList())
+    val soundbarDevices = _soundbarDevices.asStateFlow()
+    private val _soundbarSetupVisible = MutableStateFlow(false)
+    val soundbarSetupVisible = _soundbarSetupVisible.asStateFlow()
+    private val coordinator = RemoteCoordinator(tv, streamer, soundbar)
     private val _remoteState = MutableStateFlow(coordinator.state)
     val remoteState = _remoteState.asStateFlow()
     val streamerState = streamer.state
@@ -44,12 +57,33 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             tv.state.collect { _remoteState.value = coordinator.updateTvConnection(it) }
         }
+        viewModelScope.launch {
+            soundbar.state.collect { _remoteState.value = coordinator.updateSoundbarConnection(it) }
+        }
+
+    }
+
+    fun startConnections() {
+        if (bluetooth.hasPermission()) soundbar.retry()
         streamer.connectStored()
         tv.connectStored()
+        if (_soundbarSetupVisible.value) refreshSoundbarDevices()
+    }
+    fun stopConnections() {
+        pairingJob?.cancel()
+        actionJobs.toList().forEach { it.cancel() }
+        streamer.pause()
+        tv.pause()
+        soundbar.disconnect()
     }
 
     fun dispatch(action: RemoteAction) {
-        viewModelScope.launch { _remoteState.value = coordinator.dispatch(action) }
+        val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            _remoteState.value = coordinator.dispatch(action)
+        }
+        actionJobs += job
+        job.invokeOnCompletion { actionJobs.remove(job) }
+        job.start()
     }
 
     fun openSetup() {
@@ -80,7 +114,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun retry() = streamer.retry()
-    fun forgetPairing() = streamer.forgetPairing()
+    fun forgetPairing() { pairingJob?.cancel(); streamer.forgetPairing() }
 
     fun openLgSetup() {
         _lgSetupVisible.value = true
@@ -96,14 +130,29 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     fun manualLg(host: String) {
         val cleaned = normalizedLgHost(host) ?: return
-        tv.select(LgDevice("LG 55UK6700YVD", cleaned, model = "55UK6700YVD"))
+        tv.select(LgDevice("LG TV", cleaned))
     }
 
     fun retryLg() = tv.retry()
     fun forgetLg() = tv.forgetPairing()
     fun refreshLgAuthorization() = tv.refreshAuthorization()
 
+    fun openSoundbarSetup() {
+        _soundbarSetupVisible.value = true
+        refreshSoundbarDevices()
+    }
+    fun refreshSoundbarDevices() {
+        _bluetoothPermission.value = bluetooth.hasPermission()
+        _soundbarDevices.value = runCatching { bluetooth.pairedDevices() }.getOrDefault(emptyList())
+        if (bluetooth.hasPermission()) soundbar.retry()
+    }
+    fun closeSoundbarSetup() { _soundbarSetupVisible.value = false }
+    fun selectSoundbar(device: SamsungDevice) = soundbar.select(device)
+    fun retrySoundbar() = soundbar.retry()
+    fun forgetSoundbar() = soundbar.forget()
+
     override fun onCleared() {
+        soundbar.close()
         tv.close()
         streamer.close()
     }

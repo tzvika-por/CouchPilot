@@ -21,11 +21,11 @@ class LgProtocolTest {
         assertEquals("PROMPT", first.getJSONObject("payload").getString("pairingType"))
         assertFalse(first.getJSONObject("payload").has("client-key"))
         val permissions = first.getJSONObject("payload").getJSONObject("manifest").getJSONArray("permissions")
-        assertEquals(setOf("READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_DISPLAY", "CONTROL_POWER"),
+        assertEquals(setOf("READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_DISPLAY", "CONTROL_POWER", "LAUNCH"),
             (0 until permissions.length()).map(permissions::getString).toSet())
         val manifest = first.getJSONObject("payload").getJSONObject("manifest")
         assertEquals(1, manifest.getInt("manifestVersion"))
-        assertEquals(setOf("manifestVersion", "permissions"), manifest.keys().asSequence().toSet())
+        assertEquals(setOf("manifestVersion", "appVersion", "permissions"), manifest.keys().asSequence().toSet())
         assertFalse(first.toString().contains("com.lge.test"))
         assertFalse(first.toString().contains("signed"))
         assertFalse(first.toString().contains("signature"))
@@ -96,7 +96,7 @@ class LgProtocolTest {
             }
             assertEquals(401, error.errorCode)
             assertTrue(error.protocolError.contains("insufficient permissions"))
-            assertEquals("LG authorization needs refresh", error.message)
+            assertEquals("LG denied this operation", error.message)
         }
         assertEquals(null, LgProtocol.authorizationFailure(LgProtocol.decode(
             """{"type":"error","error":"500 internal error with unrelated 401"}""")))
@@ -130,7 +130,7 @@ class LgProtocolTest {
     }
 
     @Test fun wakePacketAndReconnectDelaysAreDeterministic() {
-        val configured = LgInstallation.forSelectedDevice(LgDevice("LG TV", "192.0.2.8"))
+        val configured = LgInstallation.forSelectedDevice(LgDevice("LG TV", "192.0.2.8", uuid = "uuid:00000000-0000-4000-8000-000000000001"))
         assertEquals(listOf("02:00:00:00:00:03", "02:00:00:00:00:01"), configured.wakeMacs)
         val packet = LgWakeOnLan.packet("02:00:00:00:00:03")
         assertEquals(102, packet.size)

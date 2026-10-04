@@ -48,18 +48,18 @@ class LgPairingStoreTest {
         assertEquals(false, LgPairingStore(prefs).read()!!.authorizationNeedsRefresh)
     }
 
-    @Test fun unversionedAndOutdatedGrantsCannotBeReused() {
+    @Test fun grantRevisionDoesNotEraseKnownWorkingCredentials() {
         val prefs = MemoryPreferences()
         val store = LgPairingStore(prefs)
         store.select(LgDevice("LG", "192.0.2.8"))
         store.registered("old-key", "trusted-pin")
         prefs.edit().remove("authorization_revision").commit()
-        assertNull(store.read()!!.clientKey)
-        assertEquals(true, store.read()!!.authorizationNeedsRefresh)
+        assertEquals("old-key", store.read()!!.clientKey)
+        assertEquals(false, store.read()!!.authorizationNeedsRefresh)
         assertEquals("trusted-pin", store.read()!!.certificatePin)
         prefs.edit().putInt("authorization_revision", LgProtocol.AUTHORIZATION_REVISION - 1).commit()
-        assertNull(store.read()!!.clientKey)
-        assertEquals(true, store.read()!!.authorizationNeedsRefresh)
+        assertEquals("old-key", store.read()!!.clientKey)
+        assertEquals(false, store.read()!!.authorizationNeedsRefresh)
     }
 
     internal class MemoryPreferences : SharedPreferences {

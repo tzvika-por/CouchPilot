@@ -1,6 +1,8 @@
 package com.myremote.app.lg
 
 import com.myremote.app.domain.InputSource
+import com.myremote.app.domain.DeviceFailure
+import com.myremote.app.domain.FailureKind
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -8,12 +10,14 @@ import kotlinx.coroutines.CompletableDeferred
 import org.json.JSONArray
 import org.json.JSONObject
 
+internal data class LgInput(val id: String, val appId: String?)
+
 internal data class LgMessage(
     val type: String, val id: String?, val payload: JSONObject?, val error: String?, val errorCode: Int? = null,
 )
 
 /** Keep the TV's authorization code and reason for diagnostics without exposing protocol data in UI. */
-internal class LgAuthorizationException(val protocolError: String) : IOException("LG authorization needs refresh") {
+internal class LgAuthorizationException(val protocolError: String) : DeviceFailure(FailureKind.PERMISSION_DENIED, "LG denied this operation") {
     val errorCode: Int = 401
 }
 
@@ -21,12 +25,13 @@ internal class LgAuthorizationException(val protocolError: String) : IOException
 internal object LgProtocol {
     const val INPUT_LIST = "ssap://tv/getExternalInputList"
     const val SWITCH_INPUT = "ssap://tv/switchInput"
+    const val LAUNCH_INPUT = "ssap://system.launcher/launch"
     const val TURN_OFF = "ssap://system/turnOff"
 
     // Bump whenever the permission contract changes so an old grant is never silently reused.
-    const val AUTHORIZATION_REVISION = 2
+    const val AUTHORIZATION_REVISION = 3
     private val permissions = listOf(
-        "READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_DISPLAY", "CONTROL_POWER",
+        "READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_DISPLAY", "CONTROL_POWER", "LAUNCH",
     )
 
     fun hello(id: String): String = JSONObject()
@@ -35,8 +40,8 @@ internal object LgProtocol {
         .toString()
 
     fun register(id: String, clientKey: String?): String {
-        val manifest = JSONObject().put("manifestVersion", 1).put("permissions", JSONArray(permissions))
-        val payload = JSONObject().put("pairingType", "PROMPT").put("manifest", manifest)
+        val manifest = JSONObject().put("manifestVersion", 1).put("appVersion", "1.0").put("permissions", JSONArray(permissions))
+        val payload = JSONObject().put("pairingType", "PROMPT").put("forcePairing", false).put("manifest", manifest)
         if (clientKey != null) payload.put("client-key", clientKey)
         return JSONObject().put("type", "register").put("id", id).put("payload", payload).toString()
     }
@@ -58,14 +63,18 @@ internal object LgProtocol {
 
     fun clientKey(message: LgMessage): String? = message.payload?.optString("client-key")?.takeIf(String::isNotBlank)
 
-    fun inputIds(message: LgMessage): Set<String> {
+    fun inputs(message: LgMessage): List<LgInput> {
         val devices = message.payload?.optJSONArray("devices") ?: throw IOException("webOS did not return an input list")
-        return buildSet {
+        return buildList {
             for (index in 0 until devices.length()) {
-                devices.optJSONObject(index)?.optString("id")?.takeIf(String::isNotBlank)?.let(::add)
+                val device = devices.optJSONObject(index) ?: continue
+                val id = device.optString("id").takeIf(String::isNotBlank) ?: continue
+                add(LgInput(id, device.optString("appId").takeIf(String::isNotBlank)))
             }
         }
     }
+
+    fun inputIds(message: LgMessage): Set<String> = inputs(message).map { it.id }.toSet()
 
     fun matchingInput(source: InputSource, available: Set<String>): String =
         available.firstOrNull { it.equals(source.webOsId, ignoreCase = true) }

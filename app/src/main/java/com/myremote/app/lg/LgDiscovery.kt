@@ -157,7 +157,7 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
                     fun value(tag: String): String? = document.getElementsByTagName(tag).item(0)
                         ?.textContent?.trim()?.takeIf(String::isNotBlank)
                     base.copy(name = value("friendlyName") ?: base.name,
-                        model = value("modelName"), uuid = value("UDN") ?: base.uuid)
+                        model = value("modelNumber") ?: value("modelName"), uuid = value("UDN") ?: base.uuid)
                 }
             } finally { connection.disconnect() }
         }.getOrDefault(base)

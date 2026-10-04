@@ -1,6 +1,7 @@
 package com.myremote.app.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,11 +42,12 @@ import com.myremote.app.domain.RemoteState
 
 @Composable
 fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
-    onConfigureXiaomi: () -> Unit = {}, onConfigureLg: () -> Unit = {}) {
+    onConfigureXiaomi: () -> Unit = {}, onConfigureLg: () -> Unit = {}, onConfigureSamsung: () -> Unit = {}) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .safeDrawingPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -55,12 +57,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
-            Text(
-                text = stringResource(R.string.demo_mode),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary,
-            )
-            StatusPanel(state, onConfigureXiaomi, onConfigureLg)
+            StatusPanel(state, onConfigureXiaomi, onConfigureLg, onConfigureSamsung)
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RemoteButton(
@@ -128,10 +125,16 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                     onAction(RemoteAction.Key(RemoteKey.PLAY_PAUSE))
                 }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                RemoteButton(stringResource(R.string.rewind), "rewind", Modifier.weight(1f)) {
+                    onAction(RemoteAction.Key(RemoteKey.REWIND))
+                }
+                RemoteButton(stringResource(R.string.fast_forward), "fast_forward", Modifier.weight(1f)) {
+                    onAction(RemoteAction.Key(RemoteKey.FAST_FORWARD))
+                }
+            }
             state.errorMessage?.let {
-                Text(if (state.tvConnection == ConnectionState.AUTHORIZATION_REQUIRED)
-                    stringResource(R.string.lg_authorization_refresh_needed)
-                else stringResource(R.string.action_failed, it), color = MaterialTheme.colorScheme.error)
+                Text(failureText(state.failure), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("action_error"))
             }
             Spacer(Modifier.height(20.dp))
         }
@@ -139,7 +142,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
 }
 
 @Composable
-private fun StatusPanel(state: RemoteState, onConfigureXiaomi: () -> Unit, onConfigureLg: () -> Unit) {
+private fun StatusPanel(state: RemoteState, onConfigureXiaomi: () -> Unit, onConfigureLg: () -> Unit, onConfigureSamsung: () -> Unit) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             val active = if (state.activeDevice == ActiveDevice.TV) R.string.tv else R.string.streamer
@@ -157,6 +160,9 @@ private fun StatusPanel(state: RemoteState, onConfigureXiaomi: () -> Unit, onCon
                 Text(stringResource(R.string.configure_xiaomi))
             }
             StatusLine(R.string.soundbar, state.soundbarConnection)
+            OutlinedButton(onClick = onConfigureSamsung, modifier = Modifier.fillMaxWidth().testTag("configure_samsung")) {
+                Text(stringResource(R.string.samsung_setup))
+            }
         }
     }
 }

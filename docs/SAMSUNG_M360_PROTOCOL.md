@@ -1,0 +1,44 @@
+# Samsung HW-M360 Bluetooth control
+
+## Evidence and provenance
+
+**PROVEN — physical:** Samsung Audio Remote controls volume and mute on the actual HW-M360 while it remains on D.IN.
+
+Public documentation does not publish this binary protocol. Research found [Samsung's official app listing](https://play.google.com/store/apps/details?id=com.samsung.samsungband), model documentation and no maintained public M360 packet implementation. To avoid customer Bluetooth captures, a publicly downloadable [Audio Remote 1.5.16 artifact](https://apkpure.net/audio-remote/com.samsung.samsungband/download) was downloaded into temporary development storage and inspected statically. It was not installed or run. Android `apksigner verify --print-certs` validated its signature:
+
+- Package: `com.samsung.samsungband`; version 1.5.16.
+- APK SHA-256: `3009f6a78a7e0faf2d622761a5ab2c7309f99aa5397ae1af825511999584032f`.
+- Signing certificate SHA-256: `c5875f022f8f60f2b445907176f54f46fba9f1e67e7f6af31683da1815b9f56c`.
+- Certificate subject: Samsung, SRCNJ, Nanjing/Jiangsu/CN; SHA-1 also matches independent public artifact listings.
+
+**PROVEN — static analysis:** the Bluetooth operator selects insecure RFCOMM by public service-record API with SPP UUID `00001101-0000-1000-8000-00805f9b34fb`. Transfer command definitions and the stream writer identify the following packets. The vendor source/assets/APK are not included in the repository. MyRemote's codec, transports and tests were independently written from interoperability facts. No proprietary implementation code was copied.
+
+## Wire subset
+
+Frame: `FF family length command parameters...`. Length counts command plus parameters, excluding the three-byte prefix. No checksum is appended to these volume/mute/start commands. Some other vendor command families contain their own checksum; MyRemote does not implement them. RFCOMM is a byte stream: reads must handle fragmentation and coalesced replies.
+
+| Operation | Exact hexadecimal packet |
+|---|---|
+| App start | `FF 08 02 01 01` |
+| App end (identified, not needed for close) | `FF 08 02 01 00` |
+| Volume up | `FF 0B 03 7F 01 01` |
+| Volume down | `FF 0B 03 7F 01 00` |
+| Mute toggle | `FF 0B 02 74 00` |
+| Query volume | `FF 0B 02 7F 00` |
+| Query mute | `FF 0B 03 74 10 00` |
+
+Volume responses use family `0B`, command `7F`, with parameter bytes marker/current/max. Mute responses use family `0B`, command `74`, marker/state (0/1). Unknown frames are consumed completely. The decoder rejects truncation, zero-length commands and more than 1024 bytes of unframed noise. One-byte length bounds allocation to 254 parameter bytes.
+
+## Adapter and lifecycle
+
+`SamsungProtocol` is the pure codec. `SamsungSession` owns one reader and serializes commands/queries because the protocol has no request IDs. Initialization sends app-start then queries volume; Connected requires a valid Samsung response. Volume/mute send the command and obtain valid status. A status response establishes a live service, not proof that a physical action changed audio. Unsolicited matching replies are possible, so these are not called unique command acknowledgements.
+
+Four-second status timeouts close the stream to prevent late replies satisfying the next query. Native RFCOMM connect has a ten-second limit and closes the socket on cancellation. `SamsungSoundbarController` stores only the selected bond address in private preferences (backup disabled); Android stores pairing keys. Reconnect waits 3, 6, 12, 24, then 30 seconds, and stops for permission/off/unpaired failures. App backgrounding closes connections; returning resumes them. Forget removes only MyRemote's selection, not the Android bond.
+
+Setup lists already-paired Samsung/soundbar devices; the customer's existing Samsung Audio Remote bond is reusable. On Android 12+, [BLUETOOTH_CONNECT](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions) needs runtime Nearby Devices consent. Earlier Android uses normal BLUETOOTH permission. There is no app Bluetooth scan, location permission, hidden channel reflection, A2DP connection, AVRCP proxy, input switch, media session or audio playback. If a different installation has no bond, Android Bluetooth settings provides ordinary pairing. The vendor's hidden RFCOMM channel 1/2 fallback is deliberately not used; an SDP failure remains diagnosable.
+
+**IMPLEMENTED BUT UNPROVEN:** production Samsung setup, RFCOMM initialization, volume and mute. Deterministic packet/status/lifecycle tests validate implementation against observed vendor definitions; emulator Bluetooth does not validate real SDP/radio compatibility. **OPEN QUESTION:** actual M360 status timing, service availability alongside Audio Remote, and standby power semantics. Close Audio Remote during the final single session to avoid two control clients competing. **ASSUMED:** SPP service is discoverable by UUID on this soundbar; physical validation must confirm this. No generic AVRCP assumption is made.
+
+## Power boundary
+
+A vendor power-toggle packet was identified (`FF 0B 02 20 01`), but is not sent or exposed as an explicit power command. It cannot prove wake when RFCOMM is unavailable in standby, and toggling an unknown state could turn off an active soundbar. Optical Auto Power Link and Bluetooth Power are environment settings; they were not inspected or changed. Soundbar power and Power Off All remain unimplemented pending reliable individual power semantics.
