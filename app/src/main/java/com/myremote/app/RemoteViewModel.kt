@@ -52,6 +52,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
+            streamer.powerState.collect { on ->
+                if (on != null) _remoteState.value = coordinator.updateStreamerPower(on)
+            }
+        }
+        viewModelScope.launch {
             streamer.state.collect { _remoteState.value = coordinator.updateStreamerConnection(it) }
         }
         viewModelScope.launch {

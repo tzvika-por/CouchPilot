@@ -12,3 +12,11 @@
 No physical-control claim follows from a fake server, emulator or successful build. No push, tag or release.
 
 Latest customer session after 8a1c428: LG authorization refreshed/approved; Xiaomi and Mac mini input switching succeeded. Samsung setup/volume/mute/unmute succeeded. That interoperability boundary is resolved. Follow-up UI refinement replaces sound labels with accessible state-aware icons; LG credential reuse is verified across reconnection/controller recreation. Do not request the completed physical session again. LG wake and Xiaomi production control remain separate unresolved work.
+
+
+## Current continuation after customer correction
+
+1. Completed: accessible sound icons, persistent LG credential reuse, 65 JVM and 7 emulator tests. The customer has already proven LG inputs and Samsung volume/mute; never request those again for UI changes.
+2. Completed: powered-on Xiaomi network/TLS investigation corrects the off-state outage; Ethernet works over both families, Wi-Fi still fails. Existing VPN peer identity differs and is excluded. Google production session/cancellation/reporting work passes 70 JVM and 7 emulator tests plus both build/lint variants.
+3. Investigate a native Android Bluetooth HID streamer fallback, preserving Google TV LAN and avoiding ADB/online-computer dependencies. Verify Android API/lifecycle, TV key mappings and security before implementation. No radio interoperability claim before physical evidence.
+4. Continue toward one complete candidate; perform automated protocol/state/UI/emulator gates internally. Only a final concise connection/correctness session may be requested for unavoidable hardware facts. No incremental UI test, router interaction or repeated exploratory pairing.

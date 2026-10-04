@@ -34,6 +34,11 @@ class RemoteCoordinator(
         return state
     }
 
+    fun updateStreamerPower(on: Boolean): RemoteState {
+        state = state.copy(streamerPowerOn = on)
+        return state
+    }
+
     fun updateSoundbarMute(muted: Boolean?): RemoteState {
         state = state.copy(soundbarMuted = muted)
         return state

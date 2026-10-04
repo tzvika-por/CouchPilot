@@ -145,3 +145,18 @@ This completes the requested LG/Samsung interoperability session. No further phy
 - **7 Compose tests passed** on API 35 emulator in 9.074 seconds. New coverage checks icon-only sound controls, localized content descriptions, volume/mute action routing and confirmed mute/unmute display state.
 - Debug/release lint: **0 errors and 16 advisory warnings each**. English/Hebrew sets match at 76 unique strings; speaker-vector XML parses; staged diff check passes. No dependency, permission or wire-packet changes.
 - Latest physical success above belongs to build 8a1c428. The icon refinement is automatically verified and does not imply new physical wake/Xiaomi proof. No repeated hardware session is requested.
+
+
+## Customer power correction and autonomous follow-up — 2026-10-04
+
+**PROVEN — customer:** Xiaomi was off during the latest failed Mac reachability check, then was turned on. The prior all-interface outage must not be attributed to the app or to a newly proven network cause.
+
+**PROVEN — fresh non-invasive Mac checks:** en0 (192.0.2.3) accepts IPv4 TCP 6466, 6467 and 8009 to Xiaomi 192.168.7.8. IPv6 6466/6467 also accept. TLS-only checks on 6466/6467 negotiate TLS 1.3 and present certificate SHA-256 <device-certificate-sha256>. No Polo registration, remote key or TV approval was initiated. en1 (192.0.2.19) still times out on all three IPv4 ports and both IPv6 Remote Service ports. LG TCP 3000/3001 and SSDP remain reachable on both interfaces.
+
+Remote Service v2 appears only on en0 as Xiaomi TV Box._androidtvremote2._tcp.local., advertising tv.local:6466. Resolved addresses and TXT are recorded in GOOGLE_TV_PROTOCOL.md; the service hostname changed since historical investigation. Pairing 6467 remains directly observed, not inferred from the unknown wp=6465 TXT attribute. An existing Tailscale TV peer has a different certificate, so it is not used as a Xiaomi workaround.
+
+**ASSUMED / OPEN QUESTION:** selective Wi-Fi station/bridge filtering best fits powered-on wired reachability and Wi-Fi failure, while LG remains reachable. AP isolation, guest/mesh segmentation and exact router configuration remain unidentified. Phone-to-Xiaomi reachability and MyRemote production pairing/commands are not newly proven by Mac TLS success.
+
+**PROVEN — automated:** debug and unsigned release APKs build; 70 JVM tests pass with zero failures/errors/skips; debug/release lint each reports 0 errors and 16 advisory warnings; Compose test APK compiles. Full wrapper gate passed in 3m 17s. Installed APKs on API 35 emulator execute 7 Compose tests successfully in 15.313s. Five new tests use actual IPv6 mutual TLS, independent pairing/command wire vectors, all keys/Last Channel, standby reporting and native socket cancellation. These establish implementation behavior without claiming device success.
+
+**Customer involvement boundary:** no repeated LG/Samsung test or hardware test for sound icons. Continue autonomous engineering toward one complete candidate. Only one final connection/correctness session may be needed for physical behavior that cannot be simulated; no request is made at this follow-up boundary.

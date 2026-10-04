@@ -22,7 +22,7 @@ Messages are protobuf wire format with a varint length prefix. A bounded, small 
 
 Protocol behavior was cross-checked against the [Apache-2.0 androidtvremote2 project](https://github.com/tronikos/androidtvremote2), its [Polo message schema](https://github.com/tronikos/androidtvremote2/blob/main/src/androidtvremote2/polo.proto), and the [MIT androidtv-remote project](https://github.com/louis49/androidtv-remote). Implementation code here is independent. Android API choices follow the official [NsdManager](https://developer.android.com/reference/android/net/nsd/NsdManager) and [KeyGenParameterSpec](https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec) documentation.
 
-The Xiaomi adapter does not launch yes+, read current app or power state, control Samsung hardware, or claim that Xiaomi pairing/control is proven. LG control is implemented separately; see [LG_WEBOS_PROTOCOL.md](LG_WEBOS_PROTOCOL.md). TV-side protocol variations may require adaptation after physical validation. No ADB, Wireless Debugging, or Developer Options are used.
+The Xiaomi adapter does not launch yes+, read the current app, control Samsung hardware, or claim that Xiaomi pairing/control is proven. LG control is implemented separately; see [LG_WEBOS_PROTOCOL.md](LG_WEBOS_PROTOCOL.md). TV-side protocol variations may require adaptation after physical validation. No ADB, Wireless Debugging, or Developer Options are used.
 
 ## Audit follow-up — 2026-10-04
 
@@ -33,3 +33,16 @@ NSD discovery uses one listener per generation; old resolve/lost/start-failure c
 **PROVEN — automated:** real loopback IPv4 refusal can fall back to a listening IPv6 socket, alternate addresses survive restart, and real IPv6 TLS succeeds with a synthetic certificate under the production trust policy. These do not establish Xiaomi device pairing or commands. **FAILED — historical physical:** phone TCP reachability before TLS. **OPEN QUESTION:** currently reachable Xiaomi endpoint and selective Wi-Fi path cause; all historical addresses now time out, so a stale advertisement name is insufficient current reachability evidence. No Xiaomi address is hard-coded in production and no ADB dependency was introduced.
 
 NSD network hints are read only on API 33+; older phones use the selected non-VPN LAN. API guards follow the [NsdServiceInfo reference](https://developer.android.com/reference/android/net/nsd/NsdServiceInfo). No network handle is persisted across launches.
+
+
+## Cancellable sessions and powered-on evidence — 2026-10-04
+
+**IMPLEMENTED BUT UNPROVEN physically:** socket operations explicitly own and close the native socket on coroutine cancellation. This unblocks TCP connect, TLS negotiation and framed reads rather than waiting for native timeouts after the app backgrounds. Pairing transitions serialize; cancellation does not become an authorization error. One command-session reader owns negotiation and pings; writes serialize across an entire long press. RemoteStart.started updates reported power before Connected, including false/standby; readiness is independent of that flag. Reconnect retains the stored identity and endpoint alternatives.
+
+**PROVEN — automated:** a real loopback IPv6 mutual-TLS server exercises configure/active/start/ping, all 22 key mappings, serialized long-OK/short-OK, reported standby/wake/sleep, and independent Polo certificate/code exchange. Malformed frames and server errors cannot establish readiness. Cancellation closes stalled TLS and frame-read sockets. Five new tests bring the suite to 70 JVM tests; these are protocol simulations, not physical Xiaomi control.
+
+**PROVEN — Mac network, after the customer turned Xiaomi on:** en0 reaches 192.0.2.8 TCP 6466/6467/8009 over IPv4 and 6466/6467 over IPv6. Both Remote Service ports complete TLS 1.3 with the same certificate; no application request or pairing prompt was sent. en1 still times out on those IPv4 ports and both IPv6 service ports. The off state explains the immediately preceding Ethernet outage; it does not explain the remaining interface-specific difference.
+
+Current en0 mDNS: Xiaomi TV Box._androidtvremote2._tcp.local., SRV tv.local:6466. Addresses include 192.0.2.8, fe80::2%en0, 2001:db8:7::3 and 2001:db8:7::1. TXT reports bt=02:00:00:00:00:02, wp=6465 and isDeviceInStandbyMode=false. The meaning of wp is unknown; observed pairing remains 6467. This host supersedes the old host for current investigation; no literal LAN address is embedded in the app.
+
+**OPEN QUESTION:** Wi-Fi client/bridge filtering remains the strongest explanation, not an identified router setting. An existing Tailscale Android TV peer accepts TLS but presents a different certificate from Xiaomi's LAN service; it is not an authenticated alternate Xiaomi endpoint and is excluded. Physical MyRemote pairing/commands remain unproven. No repeated UI, router or Xiaomi diagnostic is requested.

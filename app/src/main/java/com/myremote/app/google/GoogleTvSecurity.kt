@@ -98,11 +98,11 @@ internal class AndroidClientIdentity {
 }
 
 internal interface GoogleTvSocketFactory {
-    fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket
+    suspend fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket
 }
 
 internal class AndroidGoogleTvSocketFactory(private val identity: AndroidClientIdentity, private val lan: com.myremote.app.network.LanNetwork) : GoogleTvSocketFactory {
-    override fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket {
+    override suspend fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket = GoogleTvSocketIo.work { own ->
         val factory = identity.context(serverPin).socketFactory
         val network = lan.selected(device.network)
         val addresses = GoogleTvAddresses.candidates(
@@ -111,6 +111,7 @@ internal class AndroidGoogleTvSocketFactory(private val identity: AndroidClientI
         )
         val socket = GoogleTvAddresses.firstConnected(addresses) { address ->
             val candidate = factory.createSocket() as SSLSocket
+            own(candidate)
             try {
                 network?.bindSocket(candidate)
                 candidate.soTimeout = 15_000
@@ -124,7 +125,7 @@ internal class AndroidGoogleTvSocketFactory(private val identity: AndroidClientI
         try {
             // A certificate or handshake failure is not evidence that another address is safe.
             socket.startHandshake()
-            return socket
+            socket
         } catch (error: Exception) {
             socket.close()
             throw error
