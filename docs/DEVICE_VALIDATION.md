@@ -179,3 +179,18 @@ The final session can include one soundbar volume tap while Xiaomi Bluetooth is 
 
 
 Final candidate acceptance sequence: TV and Xiaomi on; install over the existing app and select Xiaomi. In Xiaomi setup choose Bluetooth and make the phone visible; approve its normal accessory pairing on Xiaomi. Confirm Connected and Home/direction/OK, then yes+ channels 1/2 and Last Channel. Reopen to check bond reuse and make one volume tap for dual-profile coexistence. Finish with the single LG wake cycle above. These are the remaining connection/correctness facts for a complete candidate; existing source/mute/icon tests are not requested again. Power Off All and unverified soundbar power remain absent.
+
+
+## Mac Tailscale hypothesis tested directly — 2026-10-04
+
+The customer clarified that Tailscale is connected on the Mac and believed it was not connected on Xiaomi. MyRemote's direct LAN endpoint does not require Xiaomi to join the tailnet. The unrelated online TV peer remains excluded by its differing certificate.
+
+**PROVEN — configuration/routing:** Mac Tailscale is Running, with no selected or automatic exit node and ShieldsUp=false. Subnet-route acceptance is enabled (RouteAll=true), but the actual route table has no VPN route for 192.0.2.0/24 or Xiaomi's local IPv6 prefix. Default internet traffic uses en0. Scoped Xiaomi routes use en0/en1; the Tailscale tunnel carries its overlay prefixes. ExitNodeAllowLANAccess=false is not an active exit-node LAN restriction when no exit node is selected. The meaning of RouteAll follows the [official Tailscale preference definition](https://github.com/tailscale/tailscale/blob/main/ipn/prefs.go); exit-node LAN behavior follows [Tailscale documentation](https://tailscale.com/docs/features/exit-nodes?tab=macos).
+
+**PROVEN — controlled comparison:** the earlier IPv4 audit bound a source IP only. Fresh probes additionally set macOS IP_BOUND_IF=25 or IPV6_BOUND_IF=125 and read back physical interface indices 4/en0 and 7/en1. With Tailscale Running, Ethernet accepts Xiaomi IPv4 6466/6467/8009 and IPv6 6466/6467; Wi-Fi times out on every one. LG IPv4 3001 accepts on both, and Xiaomi's en1 ARP entry remains incomplete.
+
+One brief autonomous comparison paused Tailscale, explicitly confirmed BackendState=Stopped, and repeated the same strictly bound sockets in parallel. **The result was identical:** all Ethernet probes accepted; all Xiaomi Wi-Fi probes timed out; LG Wi-Fi accepted. A finally block restored Tailscale to Running; WantRunning=true and all compared configuration fields were unchanged. No logout, authentication change, router/AP/Wi-Fi configuration change, TV command or persistent networking change was made.
+
+**Conclusion:** the active Mac Tailscale connection is not required for the observed Wi-Fi failure; pausing it did not fix connectivity. Selective Wi-Fi neighbor/client/bridge filtering remains the strongest hypothesis. Exact AP/router cause is still unproven, and this is not a physical Android pairing/control success. The comparison does not claim to remove or audit every installed network extension. Packet capture was unavailable without an administrator password; no password or customer diagnostic was requested because the controlled socket comparison answered the active-VPN hypothesis.
+
+Application code, APK and prior 79-JVM/10-Compose validation remain unchanged. This is a documentation-only evidence update. No further physical test is requested by this investigation; no push, tag or release.
