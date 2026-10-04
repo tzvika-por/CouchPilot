@@ -1,0 +1,37 @@
+# CouchPilot security model
+
+## Scope and trust
+
+Threats considered: an untrusted LAN advertiser/peer, changed TLS identity, malformed responses, nearby Bluetooth peers, stolen app data, accidental public disclosure, stale asynchronous ownership and excessive queued commands. CouchPilot is a client, with no public command server, WebView, deep links, analytics or cloud account. It does not provide protection against a rooted/compromised phone or a malicious approved TV.
+
+Use a trusted LAN. Production socket resolution rejects loopback, unspecified, multicast and public WAN addresses; private/link-local addresses and globally addressed IPv6 within a connected LAN prefix are allowed. Socket-local non-VPN Wi-Fi/Ethernet selection never changes process routing or VPN settings. Discovery is untrusted metadata; explicit selection and protocol registration establish the device relationship. Cross-subnet private LANs remain possible. This is containment, not cryptographic discovery authentication.
+
+## Credential and Android surface
+
+LG grants use AES-256-GCM, fresh IV, authenticated versioned envelope and Android Keystore wrapping key. Legacy private preference migration is atomic; no plaintext fallback exists. Failure requires explicit authorization recovery and retains the pin. Xiaomi client RSA private key is non-exportable Android Keystore material. Bluetooth bonding secrets remain Android-owned; app preferences contain only selected endpoint/configuration metadata and grants/pins. All private storage domains are excluded from cloud and device-transfer backup; allowBackup is false.
+
+Only launcher Activity is exported by app source. The connected-device foreground service is private; PendingIntents are explicit and immutable. Debug Compose test/tooling components are absent from release. AndroidX profile receiver requires DUMP. Bluetooth CONNECT is requested on API31+, notifications on API33+; no microphone/location/contact/storage permission. Target36 retains current LAN permission behavior; moving to target37 requires a separate local-network runtime permission review.
+
+## TLS and transport
+
+LG uses a device-specific WSS client, no redirects/downgrade, certificate validity plus TOFU on first registration, then strict full-certificate SHA256 pinning. Hostname verification is replaced only within this LG client by pin continuity; there is no shared global TrustAll manager or debug-only security bypass. An established pin mismatch is terminal. Some LG factory certificates may be shared; initial hostile-LAN impersonation remains **MEDIUM**, protocol constrained. TV approval is user consent, not a cryptographic fingerprint comparison.
+
+Google TV pairing code binds protocol identities; subsequent command TLS is pinned. TCP address-family fallback finishes before TLS and cannot turn a certificate failure into another address attempt. IPv4 failure may fall back to IPv6; family ordering is not trust ordering.
+
+UPnP descriptions require HTTP on dynamically discovered IPs. The manifest's cleartext permission remains for that specific metadata path because Network Security Config cannot express arbitrary LAN subnet/IP ranges. The only HTTP code is bounded, no-credential, same UDP-sender host, no userinfo/redirect, strict UTF-8, DTD/entity rejection, bounded depth/elements/time/bytes. SSAP is WSS and Google is TLS. Global cleartext permission is an accepted **LOW** containment risk requiring review of every new HTTP call site; it is not a blanket permission to transmit credentials.
+
+Samsung uses the compatible legacy insecure RFCOMM service on an explicitly selected existing Android bond. Vendor frames have no application-level authentication; **MEDIUM** nearby-radio risk remains. No BLE scanning or unsolicited new bond is used. HID selects an explicit host, filters callbacks to it, validates reports and releases pressed keys during cancellation. State callbacks are conflated, not an unbounded queue.
+
+## Availability and lifecycle
+
+Google framing is bounded at64KiB with malformed varint/length rejection. Samsung framing is bounded at255 bytes plus1024-byte resynchronization and status validation. LG pending requests32, receive queue64, post-assembly text limit64KiB and bounded description scan. **MEDIUM residual risk:** OkHttp assembles WebSocket messages before CouchPilot's size check; a malicious selected peer can allocate beyond the application cap. No safe pre-assembly limit is exposed by the retained API; replacing/forking transport requires separate review. This prevents claiming final1.0 release hardening complete.
+
+Retries use backoff and explicit terminal security/permission handling. LG wake/reconnect, Samsung initial wake recovery and HID outgoing recovery are bounded; steady-state saved connections can retry with backoff. Per-device bounded queues hold at most8 pending intentions, expire stale pending taps and coalesce pending input switches. Active commands are never automatically replayed. Explicit stop cancels workers and closes adapters. Only the current Samsung generation can publish state/error/mute or clear its session. Cancellation closes owned resources; hardware acknowledgements remain separate from optimistic local power hints.
+
+## Diagnostics and publication
+
+Central diagnostics accept only allowlisted fixed metadata and a bounded100-event in-memory history. Release logcat emits no events; debug uses sanitized metadata, never raw packets/keys/codes/hosts/MACs. User errors use localized categories and visible Snackbar/banner, never raw exceptions. Internal exceptions may describe endpoints but are not exported as telemetry or release logs.
+
+Tracked source and reachable history are scanned for key/token/credential material and personal identifiers before publication. Synthetic documentation addresses, test-only grants and in-memory generated test certificates are not real device credentials. Signing keys, environment files, private PEMs, pairing state and local diagnostic dumps are ignored. Findings must not be hidden by deleting only HEAD: actual historical secrets require stopping publication and history sanitation/rotation.
+
+No physical security tests or new device compatibility claims are implied by automated validation. See FINAL_VALIDATION.md and THIRD_PARTY_NOTICES.md.

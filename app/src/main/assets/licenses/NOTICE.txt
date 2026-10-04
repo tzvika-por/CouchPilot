@@ -1,0 +1,10 @@
+CouchPilot — Apache-2.0 (see LICENSE).
+Includes AndroidX/Compose (Android Open Source Project), Kotlin/coroutines (JetBrains and contributors), OkHttp/Okio (Square and contributors), separately licensed Apache-2.0 library code.
+OkHttp 4.12.0 includes Public Suffix List data, Mozilla Public License 2.0:
+Note that publicsuffixes.gz is compiled from The Public Suffix List:
+https://publicsuffix.org/list/public_suffix_list.dat
+
+It is subject to the terms of the Mozilla Public License, v. 2.0:
+https://mozilla.org/MPL/2.0/
+Corresponding bundled rules: docs/licenses/publicsuffix-list.txt in the source distribution; unchanged data.
+Protocol discoveries are acknowledged in docs/THIRD_PARTY_NOTICES.md; no upstream protocol implementation is bundled.

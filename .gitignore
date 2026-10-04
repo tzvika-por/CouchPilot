@@ -15,3 +15,14 @@ captures/
 *.key
 .env
 .env.*
+
+# Private local identities, pairing state and diagnostic exports.
+*.pem
+credentials*.json
+*pairing-state*
+*client-identity*
+device-secrets*
+signing.properties
+diagnostics-local/
+*.hprof
+*.log

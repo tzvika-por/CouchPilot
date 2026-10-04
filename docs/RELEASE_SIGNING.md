@@ -1,0 +1,9 @@
+# Release signing and upgrade continuity
+
+Android requires a signing certificate for an installable APK/AAB. `assembleRelease` currently builds an unsigned, non-debuggable APK. No production key or signing secrets are generated or committed by this milestone.
+
+Debug builds use the existing local development certificate. An unchanged applicationId **com.myremote.app** and matching signing certificate preserve in-place upgrades and private pairing/configuration. A new production certificate cannot update the customer's differently signed development install without a valid platform signing lineage; keeping the applicationId alone is insufficient. Uninstall/reinstall loses app Keystore/private pairing data and may require approval again. Do not export private device keys to work around this.
+
+Before distribution, choose the long-term signing identity and an explicit transition for existing development users. Create any future keystore outside the repository with a supported keytool/Android signing process, strong passphrase and offline encrypted backup. Restrict access, record certificate fingerprints separately, and pass credentials using protected local/CI secret configuration. Never put signing keys/passwords into Git, shared APK folders, logs or issue reports. Google Play App Signing is an optional distribution decision, not configured here.
+
+For local development continuity, use the established debug keystore privately. Do not publish its private key or market debug signing as production signing. Public CI needs no signing secret and must not publish APKs/releases automatically. VersionName remains 0.1.0 and versionCode remains 1, as required when stable promotion is deferred. A same-version development replacement with the matching certificate retains installed data. First stable target1.0.0 remains pending transport availability hardening and signing/distribution readiness.
