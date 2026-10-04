@@ -1,9 +1,10 @@
 # Device validation
 
-These observations came from physical tests supplied by the product owner. The app has not yet performed hardware control.
+These observations came from physical tests supplied by the product owner and the recorded Mac investigation. MyRemote has completed LG discovery and registration; successful physical input switching and power control remain unproven.
 
 ## Proven
 
+- MyRemote discovers the LG 55UK6700YVD, registers, and reaches Connected. SSAP requests reach the TV; input switching is rejected with 401 (see the 2026-10-04 record below).
 - LG 55UK6700YVD webOS TV: LAN pairing, input list query, and direct HDMI switching succeeded with a Windows CLI. Switching from PC to HDMI 3 / Xiaomi was observed.
 - Xiaomi TV Box S (3rd Gen): LAN reachability and Android key input were proven using exploratory ADB over Wireless Debugging. This does not validate the production remote protocol.
 - yes+: `KEYCODE_1` switched to channel 1 during playback.
@@ -16,7 +17,7 @@ These observations came from physical tests supplied by the product owner. The a
 
 - This app's Android TV Remote Service v2 discovery, pairing, connection, and key control on the physical Xiaomi. Code and automated protocol tests alone do not prove device interoperability.
 - Xiaomi power and wake behavior through that protocol.
-- MyRemote's LG registration, input switching, power off, and Wake-on-LAN power on against the physical LG. The previous Windows CLI result validates the TV and protocol path, not this adapter.
+- The revised MyRemote LG manifest obtaining a sufficient authorization grant after refresh; MyRemote input switching, power off, and Wake-on-LAN power on against the physical LG. Baseline MyRemote discovery and registration are now proven, but registration alone did not grant working control.
 - Samsung Bluetooth control protocol details and how to implement them in this app.
 - Samsung power control.
 - Automatic foregrounding or launching of yes+.
@@ -43,6 +44,27 @@ These observations came from physical tests supplied by the product owner. The a
 - A separate routed IP subnet is unlikely because both Mac interfaces have `192.0.2.0/24` on-link routes. Selective Wi-Fi client/bridge filtering, guest behavior on a shared subnet, or mesh/AP segmentation remain plausible; these passive observations do not distinguish their settings or prove the exact cause. No network settings were changed.
 - The network results do not justify changing pairing or TLS behavior to work around the phone's `EHOSTUNREACH`. A separate code audit found that NSD discarded alternate addresses, so IPv6 address fallback was added independently. The phone still needs a usable LAN path before physical pairing can be validated. No further product-owner diagnostic test is requested in this milestone.
 
+## LG authorization failure and engineering correction — 2026-10-04
+
+**PROVEN:** MyRemote discovers the LG, registers successfully, reaches Connected, and sends SSAP requests that reach the TV. The Connected path includes input enumeration. Earlier Windows CLI enumeration and direct HDMI switching, including physically confirmed HDMI 3 / Xiaomi, remain proven.
+
+**FAILED:** MyRemote attempts to switch to Mac mini / Xiaomi return `401 insufficient permissions`. This is a TV authorization rejection after connection/registration, not evidence of an HDMI ID or Compose routing defect.
+
+**STRONGEST EXPLANATION:** The issued client key represents an incomplete authorization grant. Code inspection found that the baseline already used a generic unsigned manifest with permissions in the outer array; no `com.lge.test`, signatures, or signed-only permissions were present. Its key persistence lacked a manifest/grant revision and thus could retain insufficient authorization indefinitely. The precise TV-side reason/required extra right remains unknown; its firmware version and granted rights were not measured.
+
+**IMPLEMENTED:** Remove `TEST_OPEN`/`TEST_PROTECTED`, add the related `CONTROL_DISPLAY` compatibility permission, keep input-list/input-control/power rights in the outer manifest, version the authorization contract, withhold outdated keys, expose explicit Refresh LG authorization, and classify 401 as a terminal authorization state. Refresh keeps the selected TV, wake configuration, and trusted TLS certificate pin while clearing only the client key/grant. No transport weakening or Xiaomi changes. Automated tests cover the flow without a physical TV.
+
+**NOT YET PROVEN:** The revised manifest obtaining sufficient rights, MyRemote HDMI switching after fresh approval, and LG power off/on. The proposed single validation session is: refresh LG authorization, approve the TV prompt, verify Connected, then select Xiaomi / HDMI 3. Power is excluded from that session. No additional Xiaomi test is requested.
+
+## Automated authorization validation — 2026-10-04
+
+- Final Gradle gate: `:app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest --no-daemon` passed using the existing temporary Android SDK and Gradle cache.
+- All 39 JVM unit tests passed, with zero failures, errors, or skips. Ten new tests cover grant migration/reset, authorization classification and controller state, refresh during registration, preservation of TLS trust, reconnect suppression, and failed HDMI routing. Existing manifest and SSAP request assertions were strengthened; all Xiaomi and HDMI mapping tests still pass.
+- Lint passed with zero errors and 13 advisory warnings (SDK/dependency updates and SharedPreferences KTX suggestions).
+- The Compose test APK compiled, including the new authorization-refresh callback/error-redaction test. Instrumented tests were not executed on hardware or an emulator.
+- `git diff --check` passed; English and Hebrew authorization resources parse and are present exactly once. Xiaomi implementation/tests and LG transport code are unchanged. No additional static checker is configured.
+- These automated results do not prove sufficient permission grants or successful physical input/power control.
+
 ## Known TV input map
 
 | Input | Device |
@@ -57,6 +79,6 @@ The Samsung soundbar normally remains on `D.IN`. No production adapter in this r
 ## LG Milestone 2 validation boundary — 2026-10-03
 
 - Proven before MyRemote: the LG 55UK6700YVD was reachable from Windows, accepted webOS pairing, returned its input list, and switched directly to HDMI 3 / Xiaomi.
-- Implemented in MyRemote, pending a physical test: SSDP discovery and manual host setup, prompt registration with a persisted client key, secure WebSocket with a persisted certificate pin, input enumeration and ID-based switching, `system/turnOff`, and Wake-on-LAN.
+- At the 2026-10-03 boundary, implemented in MyRemote pending a physical test: SSDP discovery and manual host setup, prompt registration with a persisted client key, secure WebSocket with a persisted certificate pin, input enumeration and ID-based switching, `system/turnOff`, and Wake-on-LAN.
 - The known installation MAC addresses are wired `02:00:00:00:00:03` and Wi-Fi `02:00:00:00:00:01`. They are saved with the target device configuration; they are not general LG model constants. Whether this TV wakes from either interface remains unproven.
-- The first LG validation session should stop after registration, Connected status, and one HDMI 3 switch. Power-off and Wake-on-LAN should be tested only after that path is confirmed. No further Xiaomi test is part of this milestone.
+- The initial validation plan was to stop after registration, Connected status, and one HDMI 3 switch. Power-off and Wake-on-LAN should be tested only after that path is confirmed. No further Xiaomi test is part of this milestone.

@@ -27,7 +27,10 @@ internal class LgSsapSession(private val transport: LgTransport, private val sco
             while (true) {
                 val message = LgProtocol.decode(transport.receive() ?: throw IOException("LG closed before registration"))
                 if (message.type == "hello") break
-                if (message.type == "error") throw IOException(message.error ?: "LG rejected hello")
+                if (message.type == "error") {
+                    LgProtocol.authorizationFailure(message)?.let { throw it }
+                    throw IOException(message.error ?: "LG rejected hello")
+                }
             }
         }
         transport.send(LgProtocol.register("myremote_register", clientKey))
@@ -42,7 +45,10 @@ internal class LgSsapSession(private val transport: LgTransport, private val sco
                     }
                     "response" -> if (message.id == "myremote_register" &&
                         message.payload?.optString("pairingType") == "PROMPT") onApprovalNeeded()
-                    "error" -> throw LgRegistrationException(message.error ?: "LG registration was rejected")
+                    "error" -> {
+                        LgProtocol.authorizationFailure(message)?.let { throw it }
+                        throw LgRegistrationException(message.error ?: "LG registration was rejected")
+                    }
                 }
             }
             error("unreachable")

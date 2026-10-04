@@ -25,7 +25,44 @@ class LgPairingStoreTest {
         assertNull(LgPairingStore(preferences).read())
     }
 
-    private class MemoryPreferences : SharedPreferences {
+    @Test fun authorizationResetKeepsDevicePinAndUnrelatedPreferences() {
+        val prefs = MemoryPreferences()
+        val device = LgInstallation.forSelectedDevice(LgDevice("LG", "192.0.2.8"))
+        val store = LgPairingStore(prefs)
+        store.select(device)
+        store.registered("old-key", "trusted-pin")
+        prefs.edit().putString("unrelated", "keep").commit()
+        store.clearAuthorization()
+        val invalidated = store.read()!!
+        assertNull(invalidated.clientKey)
+        assertEquals(true, invalidated.authorizationNeedsRefresh)
+        assertEquals(device, invalidated.device)
+        assertEquals("trusted-pin", invalidated.certificatePin)
+        store.clearAuthorization(requireRefresh = false)
+        assertEquals(false, store.read()!!.authorizationNeedsRefresh)
+        assertEquals("keep", prefs.getString("unrelated", null))
+        assertEquals(false, org.json.JSONObject(LgProtocol.register("refresh", store.read()!!.clientKey))
+            .getJSONObject("payload").has("client-key"))
+        store.registered("new-key", "trusted-pin")
+        assertEquals("new-key", LgPairingStore(prefs).read()!!.clientKey)
+        assertEquals(false, LgPairingStore(prefs).read()!!.authorizationNeedsRefresh)
+    }
+
+    @Test fun unversionedAndOutdatedGrantsCannotBeReused() {
+        val prefs = MemoryPreferences()
+        val store = LgPairingStore(prefs)
+        store.select(LgDevice("LG", "192.0.2.8"))
+        store.registered("old-key", "trusted-pin")
+        prefs.edit().remove("authorization_revision").commit()
+        assertNull(store.read()!!.clientKey)
+        assertEquals(true, store.read()!!.authorizationNeedsRefresh)
+        assertEquals("trusted-pin", store.read()!!.certificatePin)
+        prefs.edit().putInt("authorization_revision", LgProtocol.AUTHORIZATION_REVISION - 1).commit()
+        assertNull(store.read()!!.clientKey)
+        assertEquals(true, store.read()!!.authorizationNeedsRefresh)
+    }
+
+    internal class MemoryPreferences : SharedPreferences {
         private val values = mutableMapOf<String, Any>()
         override fun getAll(): MutableMap<String, *> = values.toMutableMap()
         override fun getString(key: String?, defValue: String?): String? = values[key] as? String ?: defValue

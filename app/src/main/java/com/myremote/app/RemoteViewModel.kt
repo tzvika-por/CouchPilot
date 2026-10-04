@@ -101,6 +101,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     fun retryLg() = tv.retry()
     fun forgetLg() = tv.forgetPairing()
+    fun refreshLgAuthorization() = tv.refreshAuthorization()
 
     override fun onCleared() {
         tv.close()

@@ -36,7 +36,11 @@ class RemoteCoordinator(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            state = state.copy(errorMessage = error.message ?: error.javaClass.simpleName)
+            state = state.copy(
+                tvConnection = if (tv.connectionState == ConnectionState.AUTHORIZATION_REQUIRED)
+                    ConnectionState.AUTHORIZATION_REQUIRED else state.tvConnection,
+                errorMessage = error.message ?: error.javaClass.simpleName,
+            )
         }
         state
     }

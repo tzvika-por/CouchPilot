@@ -8,7 +8,14 @@ import kotlinx.coroutines.CompletableDeferred
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal data class LgMessage(val type: String, val id: String?, val payload: JSONObject?, val error: String?)
+internal data class LgMessage(
+    val type: String, val id: String?, val payload: JSONObject?, val error: String?, val errorCode: Int? = null,
+)
+
+/** Keep the TV's authorization code and reason for diagnostics without exposing protocol data in UI. */
+internal class LgAuthorizationException(val protocolError: String) : IOException("LG authorization needs refresh") {
+    val errorCode: Int = 401
+}
 
 /** The small SSAP subset used by this remote. No Android UI or sockets live here. */
 internal object LgProtocol {
@@ -16,8 +23,10 @@ internal object LgProtocol {
     const val SWITCH_INPUT = "ssap://tv/switchInput"
     const val TURN_OFF = "ssap://system/turnOff"
 
+    // Bump whenever the permission contract changes so an old grant is never silently reused.
+    const val AUTHORIZATION_REVISION = 2
     private val permissions = listOf(
-        "TEST_OPEN", "TEST_PROTECTED", "CONTROL_INPUT_TV", "READ_INPUT_DEVICE_LIST", "CONTROL_POWER",
+        "READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_DISPLAY", "CONTROL_POWER",
     )
 
     fun hello(id: String): String = JSONObject()
@@ -43,7 +52,8 @@ internal object LgProtocol {
         val type = json.optString("type")
         if (type.isBlank()) throw IOException("webOS message has no type")
         return LgMessage(type, json.optString("id").takeIf(String::isNotEmpty),
-            json.optJSONObject("payload"), json.optString("error").takeIf(String::isNotEmpty))
+            json.optJSONObject("payload"), json.optString("error").takeIf(String::isNotEmpty),
+            json.optInt("errorCode", 0).takeIf { it != 0 })
     }
 
     fun clientKey(message: LgMessage): String? = message.payload?.optString("client-key")?.takeIf(String::isNotBlank)
@@ -61,7 +71,16 @@ internal object LgProtocol {
         available.firstOrNull { it.equals(source.webOsId, ignoreCase = true) }
             ?: throw IOException("${source.webOsId} was not reported by the TV")
 
+    fun authorizationFailure(message: LgMessage): LgAuthorizationException? {
+        if (message.type != "error" && message.payload?.optBoolean("returnValue", true) != false) return null
+        val reason = message.error ?: message.payload?.optString("errorText").orEmpty()
+        val code = message.errorCode ?: message.payload?.optInt("errorCode", 0)?.takeIf { it != 0 }
+            ?: Regex("^\\s*(\\d{3})(?:\\s|$)").find(reason)?.groupValues?.get(1)?.toIntOrNull()
+        return if (code == 401) LgAuthorizationException(reason) else null
+    }
+
     fun requireSuccess(message: LgMessage): LgMessage {
+        authorizationFailure(message)?.let { throw it }
         if (message.type == "error") throw IOException(message.error ?: "webOS rejected the request")
         if (message.type != "response" || message.payload?.optBoolean("returnValue", true) == false) {
             throw IOException(message.payload?.optString("errorText")?.takeIf(String::isNotBlank)

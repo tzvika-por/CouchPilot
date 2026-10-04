@@ -59,4 +59,7 @@
     <string name="home">בית</string>
     <string name="play_pause">הפעלה / השהיה</string>
     <string name="action_failed">הפעולה נכשלה: %1$s</string>
+    <string name="lg_authorization_required">נדרש רענון הרשאות</string>
+    <string name="lg_authorization_refresh_needed">יש לרענן את הרשאות LG. לחצו על רענון הרשאות LG ואשרו את הבקשה בטלוויזיה.</string>
+    <string name="lg_refresh_authorization">רענון הרשאות LG</string>
 </resources>

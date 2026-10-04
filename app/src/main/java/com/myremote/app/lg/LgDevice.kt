@@ -11,7 +11,10 @@ data class LgDevice(
     val wakeMacs: List<String> = emptyList(),
 )
 
-internal data class LgSavedDevice(val device: LgDevice, val clientKey: String?, val certificatePin: String?)
+internal data class LgSavedDevice(
+    val device: LgDevice, val clientKey: String?, val certificatePin: String?,
+    val authorizationNeedsRefresh: Boolean = false,
+)
 
 /** Installation-specific configuration, kept outside reusable protocol and Wake-on-LAN code. */
 internal object LgInstallation {
@@ -32,22 +35,36 @@ internal class LgPairingStore(private val prefs: SharedPreferences) {
         val host = prefs.getString("host", null) ?: return null
         val name = prefs.getString("name", host) ?: host
         val macs = prefs.getString("wake_macs", "").orEmpty().split(',').filter(String::isNotBlank)
+        val key = prefs.getString("client_key", null)
+        val currentGrant = prefs.getInt("authorization_revision", 0) == LgProtocol.AUTHORIZATION_REVISION
         return LgSavedDevice(LgDevice(name, host, prefs.getString("model", null),
             prefs.getString("uuid", null), macs),
-            prefs.getString("client_key", null), prefs.getString("certificate_pin", null))
+            key.takeIf { currentGrant }, prefs.getString("certificate_pin", null),
+            prefs.getBoolean("authorization_refresh_required", false) || (key != null && !currentGrant))
     }
 
     fun select(device: LgDevice) {
         check(prefs.edit().putString("host", device.host).putString("name", device.name)
             .putString("model", device.model).putString("uuid", device.uuid)
             .putString("wake_macs", device.wakeMacs.joinToString(","))
-            .remove("client_key").remove("certificate_pin").commit()) { "Could not save LG device" }
+            .remove("client_key").remove("certificate_pin").remove("authorization_revision")
+            .remove("authorization_refresh_required").commit()) { "Could not save LG device" }
     }
 
     fun registered(clientKey: String, certificatePin: String) {
         require(clientKey.isNotBlank() && certificatePin.isNotBlank())
         check(prefs.edit().putString("client_key", clientKey)
-            .putString("certificate_pin", certificatePin).commit()) { "Could not save LG pairing" }
+            .putString("certificate_pin", certificatePin)
+            .putInt("authorization_revision", LgProtocol.AUTHORIZATION_REVISION)
+            .remove("authorization_refresh_required").commit()) { "Could not save LG pairing" }
+    }
+
+    /** Revoke only the local grant; retain device configuration and the already trusted TLS identity. */
+    fun clearAuthorization(requireRefresh: Boolean = true) {
+        check(prefs.edit().remove("client_key").remove("authorization_revision")
+            .putBoolean("authorization_refresh_required", requireRefresh).commit()) {
+            "Could not reset LG authorization"
+        }
     }
 
     fun clear() { check(prefs.edit().clear().commit()) { "Could not clear LG pairing" } }

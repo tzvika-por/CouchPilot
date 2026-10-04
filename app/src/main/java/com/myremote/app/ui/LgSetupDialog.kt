@@ -41,6 +41,7 @@ fun LgSetupDialog(
     onManualHost: (String) -> Unit,
     onRetry: () -> Unit,
     onForget: () -> Unit,
+    onRefreshAuthorization: () -> Unit,
 ) {
     var host by remember { mutableStateOf("") }
     Dialog(onDismissRequest = onDismiss) {
@@ -79,9 +80,20 @@ fun LgSetupDialog(
                         Text(stringResource(R.string.connect_host))
                     }
                 }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (connection == ConnectionState.AUTHORIZATION_REQUIRED) {
+                    Text(stringResource(R.string.lg_authorization_refresh_needed),
+                        color = MaterialTheme.colorScheme.error)
+                } else {
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+                OutlinedButton(onClick = onRefreshAuthorization,
+                    enabled = connection != ConnectionState.PAIRING && connection != ConnectionState.CONNECTING,
+                    modifier = Modifier.fillMaxWidth().testTag("lg_refresh_authorization")) {
+                    Text(stringResource(R.string.lg_refresh_authorization))
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onRetry, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onRetry, enabled = connection != ConnectionState.AUTHORIZATION_REQUIRED,
+                        modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.retry))
                     }
                     OutlinedButton(onClick = onForget, modifier = Modifier.weight(1f)) {

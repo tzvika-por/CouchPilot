@@ -129,7 +129,9 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                 }
             }
             state.errorMessage?.let {
-                Text(stringResource(R.string.action_failed, it), color = MaterialTheme.colorScheme.error)
+                Text(if (state.tvConnection == ConnectionState.AUTHORIZATION_REQUIRED)
+                    stringResource(R.string.lg_authorization_refresh_needed)
+                else stringResource(R.string.action_failed, it), color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.height(20.dp))
         }
@@ -170,6 +172,7 @@ private fun StatusLine(@StringRes deviceName: Int, connection: ConnectionState) 
         ConnectionState.CONNECTED -> R.string.connected
         ConnectionState.DISCONNECTED -> R.string.disconnected
         ConnectionState.ERROR -> R.string.connection_error
+        ConnectionState.AUTHORIZATION_REQUIRED -> R.string.lg_authorization_required
         ConnectionState.SIMULATED -> R.string.simulated
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

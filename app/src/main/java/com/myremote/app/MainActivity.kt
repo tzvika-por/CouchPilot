@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
                     onManualHost = remote::manualLg,
                     onRetry = remote::retryLg,
                     onForget = remote::forgetLg,
+                    onRefreshAuthorization = remote::refreshLgAuthorization,
                 )
             }
         }

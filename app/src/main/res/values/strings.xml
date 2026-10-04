@@ -59,4 +59,7 @@
     <string name="home">Home</string>
     <string name="play_pause">Play / pause</string>
     <string name="action_failed">Action failed: %1$s</string>
+    <string name="lg_authorization_required">Authorization needs refresh</string>
+    <string name="lg_authorization_refresh_needed">LG authorization needs to be refreshed. Tap Refresh LG authorization and approve the request on the TV.</string>
+    <string name="lg_refresh_authorization">Refresh LG authorization</string>
 </resources>

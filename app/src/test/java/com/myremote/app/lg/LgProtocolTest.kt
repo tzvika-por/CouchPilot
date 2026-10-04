@@ -21,8 +21,17 @@ class LgProtocolTest {
         assertEquals("PROMPT", first.getJSONObject("payload").getString("pairingType"))
         assertFalse(first.getJSONObject("payload").has("client-key"))
         val permissions = first.getJSONObject("payload").getJSONObject("manifest").getJSONArray("permissions")
-        assertTrue((0 until permissions.length()).map(permissions::getString).containsAll(
-            listOf("READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_POWER")))
+        assertEquals(setOf("READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_DISPLAY", "CONTROL_POWER"),
+            (0 until permissions.length()).map(permissions::getString).toSet())
+        val manifest = first.getJSONObject("payload").getJSONObject("manifest")
+        assertEquals(1, manifest.getInt("manifestVersion"))
+        assertEquals(setOf("manifestVersion", "permissions"), manifest.keys().asSequence().toSet())
+        assertFalse(first.toString().contains("com.lge.test"))
+        assertFalse(first.toString().contains("signed"))
+        assertFalse(first.toString().contains("signature"))
+        assertFalse(first.toString().contains("TEST_"))
+        assertEquals("com.myremote.app", JSONObject(LgProtocol.hello("hello"))
+            .getJSONObject("payload").getString("appId"))
         val later = JSONObject(LgProtocol.register("reg_2", "saved-key"))
         assertEquals("saved-key", later.getJSONObject("payload").getString("client-key"))
     }
@@ -34,6 +43,7 @@ class LgProtocolTest {
         assertTrue(firstId != secondId)
         val encoded = JSONObject(LgProtocol.request(firstId, LgProtocol.SWITCH_INPUT,
             JSONObject().put("inputId", "HDMI_3")))
+        assertEquals("ssap://tv/switchInput", encoded.getString("uri"))
         assertEquals("HDMI_3", encoded.getJSONObject("payload").getString("inputId"))
         assertFalse(requests.complete(LgProtocol.decode("""{"type":"response","id":"unknown"}""")))
         assertTrue(requests.complete(LgProtocol.decode("""{"type":"response","id":"$secondId","payload":{"returnValue":true}}""")))
@@ -75,6 +85,23 @@ class LgProtocolTest {
         }
     }
 
+    @Test fun authorizationErrorsRetain401AndProtocolReason() {
+        listOf(
+            """{"type":"error","id":"a","error":"401 insufficient permissions"}""",
+            """{"type":"error","id":"a","errorCode":401,"error":"insufficient permissions"}""",
+            """{"type":"response","id":"a","payload":{"returnValue":false,"errorCode":401,"errorText":"insufficient permissions"}}""",
+        ).forEach { response ->
+            val error = assertThrows(LgAuthorizationException::class.java) {
+                LgProtocol.requireSuccess(LgProtocol.decode(response))
+            }
+            assertEquals(401, error.errorCode)
+            assertTrue(error.protocolError.contains("insufficient permissions"))
+            assertEquals("LG authorization needs refresh", error.message)
+        }
+        assertEquals(null, LgProtocol.authorizationFailure(LgProtocol.decode(
+            """{"type":"error","error":"500 internal error with unrelated 401"}""")))
+    }
+
     @Test fun rejectedRegistrationDoesNotProduceClientKey() = runBlocking {
         val transport = object : LgTransport {
             override val certificatePin = "pin"
@@ -82,7 +109,7 @@ class LgProtocolTest {
             override suspend fun send(text: String) {
                 val type = JSONObject(text).getString("type")
                 messages.send(if (type == "hello") """{"type":"hello","payload":{}}"""
-                    else """{"type":"error","id":"myremote_register","error":"401 denied"}""")
+                    else """{"type":"error","id":"myremote_register","error":"403 rejected"}""")
             }
             override suspend fun receive(): String? = messages.receiveCatching().getOrNull()
             override fun close() { messages.close() }

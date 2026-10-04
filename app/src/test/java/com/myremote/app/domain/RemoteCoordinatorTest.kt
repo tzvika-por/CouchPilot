@@ -79,6 +79,25 @@ class RemoteCoordinatorTest {
         assertTrue(remote.state.tvPowerOn)
     }
 
+    @Test fun deniedInputRetainsSelectionAndReportsAuthorizationState() = runBlocking {
+        val deniedTv = object : TvController {
+            override var connectionState = ConnectionState.CONNECTED
+            override suspend fun powerOn() = Unit
+            override suspend fun powerOff() = Unit
+            override suspend fun switchInput(source: InputSource) {
+                assertEquals(InputSource.XIAOMI, source)
+                connectionState = ConnectionState.AUTHORIZATION_REQUIRED
+                throw java.io.IOException("LG authorization needs refresh")
+            }
+        }
+        val state = RemoteCoordinator(deniedTv, streamer, soundbar).dispatch(RemoteAction.WatchYesPlus)
+        assertEquals(ConnectionState.AUTHORIZATION_REQUIRED, state.tvConnection)
+        assertEquals(null, state.selectedInput)
+        assertEquals(ActiveDevice.TV, state.activeDevice)
+        assertEquals(0, state.actionCount)
+        assertTrue(streamer.events.isEmpty())
+    }
+
     @Test fun soundControlsAlwaysTargetSoundbar() = runBlocking {
         remote.dispatch(RemoteAction.VolumeDown)
         remote.dispatch(RemoteAction.Mute)

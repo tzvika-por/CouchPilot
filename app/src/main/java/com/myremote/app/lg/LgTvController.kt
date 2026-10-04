@@ -9,9 +9,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
@@ -19,16 +22,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-/** Production webOS adapter; the selected device, key and TLS pin outlive the ViewModel. */
-class LgTvController(context: Context) : TvController, AutoCloseable {
-    private val appContext = context.applicationContext
-    private val store = LgPairingStore(appContext)
-    private val transportFactory: LgTransportFactory = OkHttpLgTransportFactory()
-    val discovery: LgDiscovery = SsdpLgDiscovery(appContext)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val _state = MutableStateFlow(
-        if (store.read()?.clientKey == null) ConnectionState.NOT_CONFIGURED else ConnectionState.DISCONNECTED,
+/** Production webOS adapter; the selected device, grant revision and TLS pin outlive the ViewModel. */
+class LgTvController internal constructor(
+    private val store: LgPairingStore,
+    private val transportFactory: LgTransportFactory,
+    val discovery: LgDiscovery,
+    private val scope: CoroutineScope,
+    private val wake: suspend (LgDevice) -> Unit,
+) : TvController, AutoCloseable {
+    constructor(context: Context) : this(
+        LgPairingStore(context), OkHttpLgTransportFactory(), SsdpLgDiscovery(context.applicationContext),
+        CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        { device -> LgWakeOnLan.send(context.applicationContext, device.wakeMacs) },
     )
+
+    private val _state = MutableStateFlow(savedState())
     val state: StateFlow<ConnectionState> = _state
     override val connectionState: ConnectionState get() = _state.value
     private val _error = MutableStateFlow<String?>(null)
@@ -38,28 +46,31 @@ class LgTvController(context: Context) : TvController, AutoCloseable {
     @Volatile private var session: LgSsapSession? = null
     @Volatile private var inputIds: Set<String> = emptySet()
 
+    private fun savedState(): ConnectionState {
+        val saved = store.read()
+        return when {
+            saved?.authorizationNeedsRefresh == true -> ConnectionState.AUTHORIZATION_REQUIRED
+            saved?.clientKey == null -> ConnectionState.NOT_CONFIGURED
+            else -> ConnectionState.DISCONNECTED
+        }
+    }
+
     fun startDiscovery() {
         discovery.start()
-        if (_state.value != ConnectionState.CONNECTED) _state.value = ConnectionState.DISCOVERING
+        if (_state.value != ConnectionState.CONNECTED && _state.value != ConnectionState.AUTHORIZATION_REQUIRED) {
+            _state.value = ConnectionState.DISCOVERING
+        }
     }
 
     fun stopDiscovery() {
         discovery.stop()
-        if (_state.value == ConnectionState.DISCOVERING) {
-            _state.value = if (store.read()?.clientKey == null) ConnectionState.NOT_CONFIGURED
-                else ConnectionState.DISCONNECTED
-        }
+        if (_state.value == ConnectionState.DISCOVERING) _state.value = savedState()
     }
 
     fun select(device: LgDevice) {
         stopDiscovery()
-        val selected = LgInstallation.forSelectedDevice(device)
-        val existing = store.read()
-        if (existing?.device?.host != selected.host ||
-            (existing.device.uuid != null && selected.uuid != null && existing.device.uuid != selected.uuid)) {
-            store.select(selected)
-        }
-        connectSelected(retry = false)
+        // Device changes and grant writes must follow completion of the previous registration job.
+        connectSelected(retry = false, selected = LgInstallation.forSelectedDevice(device))
     }
 
     fun connectStored() {
@@ -74,15 +85,36 @@ class LgTvController(context: Context) : TvController, AutoCloseable {
         connectSelected(retry = store.read()?.clientKey != null)
     }
 
-    private fun connectSelected(retry: Boolean) {
+    /** Explicit user action: retire the old grant, then request TV approval without its key. */
+    fun refreshAuthorization() {
+        stopDiscovery()
+        connectSelected(retry = false, refreshAuthorization = true)
+    }
+
+    private fun connectSelected(retry: Boolean, refreshAuthorization: Boolean = false, selected: LgDevice? = null) {
         deliberateOff = false
-        connectionJob?.cancel()
+        val previous = connectionJob
+        previous?.cancel()
         session?.close()
         session = null
         inputIds = emptySet()
         _error.value = null
-        val saved = store.read() ?: return
         connectionJob = scope.launch {
+            withContext(NonCancellable) { previous?.join() }
+            currentCoroutineContext().ensureActive()
+            if (selected != null) {
+                val existing = store.read()
+                if (existing?.device?.host != selected.host ||
+                    (existing.device.uuid != null && selected.uuid != null && existing.device.uuid != selected.uuid)) {
+                    store.select(selected)
+                }
+            }
+            if (refreshAuthorization) store.clearAuthorization(requireRefresh = false)
+            val saved = store.read() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return@launch }
+            if (saved.authorizationNeedsRefresh) {
+                _state.value = ConnectionState.AUTHORIZATION_REQUIRED
+                return@launch
+            }
             var failures = 0
             var pairing = saved
             while (isActive) {
@@ -108,55 +140,78 @@ class LgTvController(context: Context) : TvController, AutoCloseable {
                     throw cancelled
                 } catch (error: Exception) {
                     if (!isActive) break
-                    terminalFailure = error is LgRegistrationException
-                    _error.value = error.message ?: "LG connection failed"
-                    _state.value = if (terminalFailure || (!retry && pairing.clientKey == null)) ConnectionState.ERROR
-                        else ConnectionState.DISCONNECTED
+                    terminalFailure = error is LgRegistrationException || error is LgAuthorizationException
+                    if (error is LgAuthorizationException) {
+                        store.clearAuthorization()
+                        _error.value = null
+                        _state.value = ConnectionState.AUTHORIZATION_REQUIRED
+                    } else {
+                        _error.value = error.message ?: "LG connection failed"
+                        _state.value = if (terminalFailure || (!retry && pairing.clientKey == null)) ConnectionState.ERROR
+                            else ConnectionState.DISCONNECTED
+                    }
                 } finally {
                     if (session === current) session = null
                     inputIds = emptySet()
                     current?.close()
                 }
-                if (deliberateOff) break
-                if (terminalFailure) break
-                if (!retry && pairing.clientKey == null) break
+                if (deliberateOff || terminalFailure || (!retry && pairing.clientKey == null)) break
                 failures++
                 delay(LgReconnect.delayMillis(failures))
             }
         }
     }
 
-    override suspend fun switchInput(source: InputSource) {
+    private suspend fun controlRequest(uri: String, payload: JSONObject? = null) {
         val active = session?.takeIf { _state.value == ConnectionState.CONNECTED }
             ?: throw IOException("LG TV is not connected; set it up first")
+        try {
+            active.request(uri, payload)
+        } catch (error: LgAuthorizationException) {
+            if (session === active) {
+                store.clearAuthorization()
+                _state.value = ConnectionState.AUTHORIZATION_REQUIRED
+                _error.value = null
+                connectionJob?.cancel()
+                session = null
+                inputIds = emptySet()
+                active.close()
+            }
+            throw error
+        }
+    }
+
+    override suspend fun switchInput(source: InputSource) {
         val id = LgProtocol.matchingInput(source, inputIds)
-        active.request(LgProtocol.SWITCH_INPUT, JSONObject().put("inputId", id))
+        controlRequest(LgProtocol.SWITCH_INPUT, JSONObject().put("inputId", id))
     }
 
     override suspend fun powerOff() {
-        val active = session?.takeIf { _state.value == ConnectionState.CONNECTED }
-            ?: throw IOException("LG TV is not connected")
-        active.request(LgProtocol.TURN_OFF)
+        controlRequest(LgProtocol.TURN_OFF)
         deliberateOff = true
-        active.close()
+        session?.close()
         _state.value = ConnectionState.DISCONNECTED
     }
 
     override suspend fun powerOn() = withContext(Dispatchers.IO) {
         val device = store.read()?.device ?: throw IOException("Set up the LG TV first")
-        LgWakeOnLan.send(appContext, device.wakeMacs)
+        wake(device)
         retry()
     }
 
     fun forgetPairing() {
-        connectionJob?.cancel()
-        connectionJob = null
+        val previous = connectionJob
+        previous?.cancel()
         session?.close()
         session = null
         inputIds = emptySet()
-        store.clear()
-        _state.value = ConnectionState.NOT_CONFIGURED
-        _error.value = null
+        connectionJob = scope.launch {
+            withContext(NonCancellable) { previous?.join() }
+            currentCoroutineContext().ensureActive()
+            store.clear()
+            _state.value = ConnectionState.NOT_CONFIGURED
+            _error.value = null
+        }
     }
 
     override fun close() {
