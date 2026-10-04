@@ -4,7 +4,7 @@
 
 **PROVEN — network:** with Xiaomi powered on, Mac Ethernet reaches both Google TV Remote Service ports over IPv4 and IPv6; Mac Wi-Fi cannot. LG remains reachable from Wi-Fi. A separate existing VPN TV endpoint presents a different TLS certificate and cannot be assumed to be Xiaomi. Exact AP isolation/bridge cause remains open. Google TV LAN code and credentials remain intact.
 
-**IMPLEMENTED BUT UNPROVEN physically:** Android's native Bluetooth HID Device profile supplies a phone-to-TV route independent of IP discovery, LAN filtering, ADB, developer options, a PC or a vendor service. This is an optional explicitly selected connection method, not a silent retry of a possibly delivered LAN command. The customer has since established a Galaxy/Xiaomi OS bond and obtained MyRemote Connected after manual recovery. Received key reports and durable automatic recovery are still unproven.
+**IMPLEMENTED / physical evidence:** Android's native Bluetooth HID Device profile supplies a phone-to-TV route independent of IP discovery, LAN filtering, ADB, developer options, a PC or a vendor service. It is an explicitly selected method, not a silent replay of a LAN command. The customer established a Galaxy/Xiaomi bond and later reported working correctness in aggregate. Latest confirmation after eba8ec5 proves Xiaomi Off and disappearance of background TV blinking; wake fails. Individual key timings and standby receiver behavior remain unmeasured.
 
 ## Setup and storage
 
@@ -38,7 +38,7 @@ Independent descriptor: report 1 is an 8-byte keyboard input with 1-byte LED out
 
 The reviewed kernel mappings and Android 14 Generic.kl map Menu Pick to Linux KEY_SELECT and Android DPAD_CENTER, rather than ordinary keyboard ENTER. This distinction matters for yes+ long OK. Short presses hold 60 ms then release; long presses hold 650 ms then release. All writes serialize through a whole press. Cancellation attempts release in a non-cancellable finally block. The existing domain Last Channel macro remains long CENTER then short CENTER; no macro lives in Compose.
 
-HID has no reliable reported TV power state or current app. Sleep/wake require a live Bluetooth connection and remain unproven; wake cannot work if the box disconnects Bluetooth in standby. No absolute wake or successful state change is claimed merely because Android accepts a report. The dedicated Xiaomi Off action now exposes the existing System Sleep report independently of HDMI selection. Physical standby/wake remains unverified. App launch is not provided by this adapter; the redundant Watch yes+ shortcut is removed. Samsung power belongs to its separate RFCOMM adapter.
+HID has no reliable reported TV power state or current app. Sleep/wake reports require a live Bluetooth connection. Sleep now has physical success; wake fails. A wake report cannot be delivered while the HID connection is absent; this does not prove every alternative wake mechanism impossible. No absolute wake or successful state change is claimed merely because Android accepts a report. The dedicated Xiaomi Off action now exposes the existing System Sleep report independently of HDMI selection. The off effect is physically confirmed; wake remains failed and exact standby radio behavior is unknown. App launch is not provided by this adapter; the redundant Watch yes+ shortcut is removed. Samsung power belongs to its separate RFCOMM adapter.
 
 ## Automated evidence and physical boundary
 
@@ -90,3 +90,5 @@ Additional primary references (reviewed independently; no source copied):
 ## Foreground service retention supersedes screen-only ownership
 
 The remote no longer requires keeping its Activity on screen. The connectedDevice service keeps Android UID importance eligible for native HID while other apps are used. Normal screen stop/recreation does not unregister SDP, disconnect the host or initiate another bond; discovery alone pauses. A quiet service notification and in-app Disconnect control give explicit cleanup. Notification denial does not block the service. Force-stop, Bluetooth disablement, process/device shutdown or an actual transport loss can still disconnect; uninterrupted physical TV playback on the customer's Galaxy/Xiaomi remains unverified until normal usage confirms it. This update supersedes earlier foreground-screen-only instructions above. Primary AOSP/API/service references are in ARCHITECTURE.md.
+
+Latest customer confirmation after eba8ec5: background flicker is gone and Off works; On fails. [Power-on research](POWER_ON_RESEARCH.md) records the public HID limits, exact-model lack of IR, conditional CEC direction and absence of a verified phone-only disconnected wake path. No new physical test is requested.

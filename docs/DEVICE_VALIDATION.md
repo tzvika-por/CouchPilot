@@ -1,8 +1,10 @@
 # Device validation
 
-These observations came from physical tests supplied by the customer and the recorded Mac investigation. MyRemote LG discovery, registration, Power Off and input switching are physically proven. MyRemote Samsung setup, volume up/down and mute/unmute are now physically proven. LG wake and Xiaomi production control remain unresolved.
+These observations came from customer physical tests and the recorded Mac investigation. Latest confirmation after eba8ec5: background TV blinking is resolved; LG, Xiaomi and Samsung power-off works; power-on fails for all three. LG inputs and Samsung volume/mute remain physically proven; earlier Xiaomi correctness was an aggregate success report. Google LAN interoperability, detailed standby behavior and the exact causes of failed wake remain unresolved. The latest record below supersedes historical unproven off/flicker statements.
 
 ## Proven
+
+- Latest customer confirmation after eba8ec5: normal app switching no longer causes TV blinking. All three device Off controls work; power-on through their current controls fails. Samsung remains a toggle whose off effect was observed.
 
 - MyRemote discovers the LG 55UK6700YVD, registers and reaches Connected. The latest customer session confirmed switching to HDMI 3/Xiaomi and back to HDMI 2/Mac mini after authorization refresh and TV approval. Earlier 401 failures are historical evidence below.
 - MyRemote Samsung setup succeeds; Volume Up, Volume Down, Mute and Unmute worked on the HW-M360 in the latest customer session.
@@ -12,17 +14,17 @@ These observations came from physical tests supplied by the customer and the rec
 - yes+: `KEYCODE_LAST_CHANNEL` did not work. Long `DPAD_CENTER` opened quick actions with “Last Channel” selected by default; a following short `DPAD_CENTER` switched to the previous channel.
 - Samsung HW-M360: Samsung Audio Remote on an Android phone controlled Bluetooth Volume Up, Volume Down, and Mute while the soundbar stayed on optical `D.IN`.
 - Historical 2026-10-03 observation: the Xiaomi advertised `Xiaomi TV Box._androidtvremote2._tcp.local.` with command port `6466`. From the Mac's Ethernet interface, the Remote Service accepted TCP connections over IPv6 on command port `6466` and pairing port `6467`. This proves listener reachability, not a completed TLS or pairing exchange.
-- Historical Mac Wi-Fi probes could not reach Xiaomi over either address family; the phone's manual IPv4 attempt failed before TLS or pairing. Current 2026-10-04 probes also fail on Ethernet; see the dated current record below.
+- Historical Mac Wi-Fi probes could not reach Xiaomi over either address family; the phone's manual IPv4 attempt failed before TLS or pairing. An early 2026-10-04 probe also failed on Ethernet while the Xiaomi was off; later powered-on Ethernet probes succeeded, as recorded below.
 
 ## Not yet proven
 
 - This app's Android TV Remote Service v2 discovery, pairing, connection, and key control on the physical Xiaomi. Code and automated protocol tests alone do not prove device interoperability.
 - Xiaomi power and wake behavior through that protocol.
-- LG wake: prior physical attempts failed; revised WOL targeting is not yet physically proven.
+- LG wake: revised WOL targeting failed physically; successful standby wake remains unproven.
 - Automatic LG reconnection without another approval across repeated physical launches. Credential persistence/reuse is proven automatically; the customer has not yet reported repeated launches. No repeat pairing test is requested.
-- Samsung power control.
+- Independent Samsung wake from a disconnected session. The live-session toggle now physically turns it off.
 - Automatic foregrounding or launching of yes+.
-- MyRemote pairing, command channel, and long press through the production protocol on the physical Xiaomi.
+- MyRemote LAN Remote Service v2 pairing, command channel and long press on the physical Xiaomi. Bluetooth correctness has separate aggregate customer evidence; exact long-press timing was not captured.
 - The exact router, access point, or filtering setting responsible for Wi-Fi isolation.
 
 ## Failed MyRemote physical test — 2026-10-03
@@ -262,3 +264,11 @@ Delivery: /Volumes/Expansion/Videos/MyRemote.apk was atomically replaced and ver
 Background candidate validation: debug and unsigned release APK builds passed; **98 JVM tests, zero failures/errors/skips**; debug/release lint **zero errors, 20 advisory warnings each**; Compose test APK compiled; **17 actual API 35 emulator tests passed in 64.446 seconds**. The production MainActivity/RemoteConnectionService/native HID test preserves registration across Activity stop, return and recreation, then verifies explicit disconnect releases it. A second production service test passes with notification permission denied. The isolated emulator uses only a synthetic unbonded host and requests no physical pairing. The additional Compose test verifies connection cleanup invokes no device power/input action. Two pure tests cover idempotent lease start/stop and partial-start cleanup/retry. All 96 English/Hebrew string keys match; XML/diff checks pass. Native registration/loss diagnostics are allowlisted and reveal no credentials/addresses.
 
 The debug APK replaced `/Volumes/Expansion/Videos/MyRemote.apk` atomically and is byte-for-byte verified: **23,213,837 bytes**, SHA-256 **1ccd02218bde74aa6ad8a7f86be4b52c3d77574b198c2231f5f2ec2f3ae203a5**. APK signature verification confirms the previous shared signing identity is preserved. No push, tag, release publication, physical re-pair or owner diagnostic was performed. The real TV flicker outcome remains physically unconfirmed; existing power/wake evidence is unchanged.
+
+## Latest customer confirmation and power-on research — 2026-10-04
+
+**PROVEN — physical customer report, after eba8ec5:** ordinary app switching no longer makes the TV blink. LG, Xiaomi and Samsung Off controls turn their devices off. **FAILED — physical:** the current controls do not turn any of the three back on. This supersedes the earlier individual-power and background candidate's unproven states. No trace of the phone's saved LG MACs or exact device standby radio behavior was supplied; do not assign a root cause beyond the observations.
+
+**PROVEN — primary research/code inspection:** LG's exact model has mobile wake capabilities; the official Samsung manual documents optical Auto Power Link and Bluetooth Power On. LG saved-selection metadata has a missing-MAC migration path that can prevent packet creation. Samsung's current control intentionally requires Connected and suppresses reconnect after its off toggle. Xiaomi HID WAKEUP requires a live connection; no manufacturer-documented disconnected phone-HID wake method was found. Detailed references and limits are in [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md).
+
+**NOT PROVEN:** physical wake through any replacement approach, enabled standby settings, SPP-only Samsung wake while preserving D.IN, or TV-to-Xiaomi CEC wake. LG source-to-TV CEC power synchronization must not be assumed to work in reverse. No new owner diagnostic or device setting/power change was requested or performed. Research/documentation only; application and the shared APK remain eba8ec5, with the prior 98-JVM/17-emulator/build/lint/Compose validation unchanged. Documentation diff and relative-link checks pass; no push, tag or release.

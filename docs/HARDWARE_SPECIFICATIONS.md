@@ -26,7 +26,7 @@ Installation-only wake addresses: wired `02:00:00:00:00:03`, wireless `02:00:00:
 
 **IMPLEMENTED BUT UNPROVEN:** Remote Service v2 discovery, certificate-authenticated Polo pairing, persistent Android Keystore identity, IPv4/IPv6 address fallback, pinned command channel, heartbeats, short/long keys, reconnect and SLEEP/WAKEUP. Actual production pairing/control and wake are **OPEN QUESTION**. [Protocol schemas/maintained client](https://github.com/tronikos/androidtvremote2) establish wire behavior; [Google TV protocol](GOOGLE_TV_PROTOCOL.md) documents MyRemote's subset.
 
-**ASSUMED:** CEC may assist activation if both TV and streamer enable it. No exact installed CEC setting or power coupling was measured. Do not use it as an autonomous power fallback or promise wake from a disconnected/full-off device. A Bluetooth HID remote is a possible legitimate LAN-independent product path, but would require TV-side association and a separate adapter; it is not implemented or physically validated. Neither ADB nor a permanently online computer is a product workaround.
+**OPEN QUESTION:** CEC may assist activation if both TV and streamer support the relevant standby behavior. LG's same-generation guide documents source-to-TV power-on; it does not guarantee the reverse. No installed CEC setting or wake coupling was measured. Native Bluetooth HID is now implemented; the customer established the bond, reported working correctness in aggregate and confirms Xiaomi Off. Disconnected wake failed. Neither ADB nor a permanently online computer is a product workaround; see [power-on research](POWER_ON_RESEARCH.md).
 
 ## Samsung HW-M360
 
@@ -36,7 +36,7 @@ Installation-only wake addresses: wired `02:00:00:00:00:03`, wireless `02:00:00:
 
 **PROVEN — static vendor-app observation:** Samsung-signed Audio Remote 1.5.16 uses Bluetooth Classic RFCOMM, SPP UUID `00001101-0000-1000-8000-00805f9b34fb`, and a proprietary framed stream. Volume and mute are explicit control packets; they do not require A2DP playback or generic AVRCP. The verified public artifact, hashes, command vectors and research boundaries are recorded in [Samsung protocol](SAMSUNG_M360_PROTOCOL.md). This establishes what the vendor app sends, not current MyRemote physical success.
 
-**PROVEN — physical:** the independent RFCOMM adapter successfully completed setup and volume up/down/mute/unmute in the customer session with MyRemote 8a1c428. Android bond reuse, response validation and timeout/cancellation/reconnect also have automated coverage; extended physical reconnect reliability remains unmeasured. Soundbar power now exposes the verified vendor toggle on a live RFCOMM session, without claiming an absolute wake/off contract; its physical effect and standby availability remain unmeasured. Bluetooth Power may activate Bluetooth playback/input; the app does not change the soundbar away from D.IN.
+**PROVEN — physical:** the independent RFCOMM adapter successfully completed setup and volume up/down/mute/unmute in the customer session with MyRemote 8a1c428. Android bond reuse, response validation and timeout/cancellation/reconnect also have automated coverage; extended physical reconnect reliability remains unmeasured. Soundbar power now exposes the verified vendor toggle on a live RFCOMM session, without claiming an absolute wake/off contract; its off effect is now physically confirmed; disconnected wake failed and standby availability remains unresolved. Bluetooth Power may activate Bluetooth playback/input; the app does not change the soundbar away from D.IN.
 
 ## Sources and activity safety
 
@@ -57,3 +57,7 @@ Android offers a public Bluetooth HID Device profile on API 28+. Its keyboard/Co
 ## Xiaomi Bluetooth evidence update — 2026-10-04
 
 The customer established a Galaxy/Xiaomi bond: Xiaomi retained the phone accessory after exiting setup, and MyRemote eventually showed Xiaomi Connected after manual recovery. The screenshot reports LG and Samsung Connected at the same time. Initial brief disconnects/retry loops occurred. Native HID association is supported by this evidence; reliable automatic recovery, received keys/long press, simultaneous command delivery and standby wake remain unproven. No conclusion about Wi-Fi reachability follows from Bluetooth success.
+
+## Latest physical status and wake research
+
+After eba8ec5, the customer confirms the background TV blink is gone and LG/Xiaomi/Samsung Off works. On fails for all three. This supersedes earlier unmeasured power-off and screen-retention states; detailed key timing/standby receiver behavior remain unknown. [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md) records exact-model LG mobile wake, Samsung optical/Bluetooth wake and Xiaomi's lack of a verified disconnected phone-only wake route. No new device setting or physical control is claimed.

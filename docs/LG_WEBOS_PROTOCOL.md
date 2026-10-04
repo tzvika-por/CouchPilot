@@ -42,3 +42,7 @@ The customer's successful refresh generated a stored grant and cleared authoriza
 
 
 **FAILED — latest physical wake check, 2026-10-04:** the customer reported successful power-off followed by unsuccessful power-on in the requested correctness session. The revised per-network broadcast implementation is physically unsuccessful in this installation so far. Successful UDP packet tests do not establish TV standby responsiveness. The first cause remains unresolved; no additional physical test was requested.
+
+## Power-on research after the latest customer result
+
+After eba8ec5 the customer confirms background flicker is gone, all three device Off controls work and all three On attempts fail. LG's exact model and same-generation guide document Mobile TV On. Current WOL does not depend on an open WSS connection. Code inspection finds that read() does not backfill missing wake MACs and same-host selection can discard newly discovered identity/MAC metadata. This is a concrete possible no-packet path, not proof of the phone's saved state. [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md) specifies a credential-preserving migration as next engineering work, sources and standby/network limits. No app change or new physical test is made in this research update.
