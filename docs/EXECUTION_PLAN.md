@@ -10,3 +10,5 @@
 6. **Awaiting unavoidable physical interoperability:** stop at the real TV authorization/Bluetooth service boundary. LG input/wake root causes and Xiaomi reachability are still open; this is not a completed useful release. One batched safe session only after implementation materially changes. No repeated pairing experiment, network administration or command-line customer work.
 
 No physical-control claim follows from a fake server, emulator or successful build. No push, tag or release.
+
+Latest customer session after 8a1c428: LG authorization refreshed/approved; Xiaomi and Mac mini input switching succeeded. Samsung setup/volume/mute/unmute succeeded. That interoperability boundary is resolved. Follow-up UI refinement replaces sound labels with accessible state-aware icons; LG credential reuse is verified across reconnection/controller recreation. Do not request the completed physical session again. LG wake and Xiaomi production control remain separate unresolved work.

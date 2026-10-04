@@ -86,6 +86,28 @@ class LgAuthorizationTest {
         fixture.controller.close()
     }
 
+    @Test fun refreshedGrantIsReusedAcrossBackgroundingAndControllerRecreation() = runTest {
+        val fixture = fixture()
+        fixture.controller.refreshAuthorization(); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        fixture.controller.pause(); runCurrent()
+        fixture.controller.connectStored(); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        fixture.controller.close(); runCurrent()
+        val recreated = controller(LgPairingStore(fixture.preferences), fixture.factory)
+        recreated.connectStored(); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, recreated.connectionState)
+        val registrations = fixture.transports.map { transport ->
+            JSONObject(transport.sent.first { JSONObject(it).getString("type") == "register" }).getJSONObject("payload")
+        }
+        assertFalse(registrations[0].has("client-key")) // Explicit refresh only.
+        assertEquals("key-1", registrations[1].getString("client-key"))
+        assertEquals("key-2", registrations[2].getString("client-key"))
+        assertTrue(registrations.all { !it.getBoolean("forcePairing") })
+        assertFalse(fixture.store.read()!!.authorizationNeedsRefresh)
+        recreated.close()
+    }
+
     @Test fun registration401RemainsAuthorizationFailure() = runTest {
         val fixture = fixture("register")
         fixture.controller.connectStored()

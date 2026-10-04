@@ -54,7 +54,7 @@ internal class SamsungSession(private val transport: SamsungTransport, scope: Co
     suspend fun mute() = mutex.withLock {
         transport.send(SamsungProtocol.mute())
         val response = query(116, SamsungProtocol.muteQuery())
-        if (SamsungProtocol.muted(response) == null) throw IOException("Samsung mute status was invalid")
+        SamsungProtocol.muted(response) ?: throw IOException("Samsung mute status was invalid")
     }
 
     private suspend fun verifyVolume() {

@@ -39,6 +39,8 @@ class SamsungSoundbarController internal constructor(
     override val connectionState get() = _state.value
     private val _error = MutableStateFlow<FailureKind?>(null)
     val error: StateFlow<FailureKind?> = _error
+    private val _muted = MutableStateFlow<Boolean?>(null)
+    val muted: StateFlow<Boolean?> = _muted
     private var job: Job? = null
     @Volatile private var session: SamsungSession? = null
 
@@ -50,6 +52,7 @@ class SamsungSoundbarController internal constructor(
         job = scope.launch {
             var failures = 0
             while (isActive) {
+                _muted.value = null
                 _state.value = ConnectionState.CONNECTING
                 var active: SamsungSession? = null
                 try {
@@ -88,6 +91,7 @@ class SamsungSoundbarController internal constructor(
         catch (error: Exception) {
             if (error !is CancellationException) {
                 active.close()
+                _muted.value = null
                 _state.value = ConnectionState.DISCONNECTED
                 _error.value = com.myremote.app.domain.failureKind(error)
                 RemoteDiagnostics.record("samsung", operation, "failed")
@@ -95,11 +99,13 @@ class SamsungSoundbarController internal constructor(
             throw error
         }
     }
-    override suspend fun volumeUp() = command("volume_up") { it.volumeUp() }
-    override suspend fun volumeDown() = command("volume_down") { it.volumeDown() }
-    override suspend fun mute() = command("mute") { it.mute() }
+    // A volume change may also clear mute. Without a fresh mute response the state is unknown.
+    override suspend fun volumeUp() = command("volume_up") { _muted.value = null; it.volumeUp() }
+    override suspend fun volumeDown() = command("volume_down") { _muted.value = null; it.volumeDown() }
+    override suspend fun mute() = command("mute") { _muted.value = it.mute() }
 
     fun disconnect() {
+        _muted.value = null
         job?.cancel(); job = null
         session?.close(); session = null
         if (load() != null) _state.value = ConnectionState.DISCONNECTED

@@ -54,13 +54,14 @@ internal class ScriptedSamsungTransport(private val autoReply: Boolean = true) :
     val incoming = Channel<SamsungProtocol.Frame>(Channel.UNLIMITED)
     val sent = mutableListOf<String>()
     var closed = false
+    var muteStatus = 1
     override suspend fun send(bytes: ByteArray) {
         check(!closed)
         val hex = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
         sent += hex
         if (autoReply) when (hex) {
             "ff0b027f00" -> incoming.send(SamsungProtocol.Frame(11, 127, byteArrayOf(0, 12, 50)))
-            "ff0b03741000" -> incoming.send(SamsungProtocol.Frame(11, 116, byteArrayOf(0, 1)))
+            "ff0b03741000" -> incoming.send(SamsungProtocol.Frame(11, 116, byteArrayOf(0, muteStatus.toByte())))
         }
     }
     override suspend fun receive(): SamsungProtocol.Frame? = incoming.receiveCatching().getOrNull()

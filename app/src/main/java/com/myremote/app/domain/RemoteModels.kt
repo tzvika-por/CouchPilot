@@ -43,6 +43,7 @@ data class RemoteState(
     val tvConnection: ConnectionState = ConnectionState.DISCONNECTED,
     val streamerConnection: ConnectionState = ConnectionState.DISCONNECTED,
     val soundbarConnection: ConnectionState = ConnectionState.DISCONNECTED,
+    val soundbarMuted: Boolean? = null,
     val tvPowerOn: Boolean = true,
     val streamerPowerOn: Boolean = true,
     val actionCount: Int = 0,

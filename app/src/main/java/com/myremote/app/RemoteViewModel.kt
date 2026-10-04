@@ -58,6 +58,9 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
             tv.state.collect { _remoteState.value = coordinator.updateTvConnection(it) }
         }
         viewModelScope.launch {
+            soundbar.muted.collect { _remoteState.value = coordinator.updateSoundbarMute(it) }
+        }
+        viewModelScope.launch {
             soundbar.state.collect { _remoteState.value = coordinator.updateSoundbarConnection(it) }
         }
 

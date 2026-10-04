@@ -28,7 +28,7 @@ internal object LgProtocol {
     const val LAUNCH_INPUT = "ssap://system.launcher/launch"
     const val TURN_OFF = "ssap://system/turnOff"
 
-    // Bump whenever the permission contract changes so an old grant is never silently reused.
+    // Records the requested permission contract; revision changes never force pairing again.
     const val AUTHORIZATION_REVISION = 3
     private val permissions = listOf(
         "READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV", "CONTROL_DISPLAY", "CONTROL_POWER", "LAUNCH",

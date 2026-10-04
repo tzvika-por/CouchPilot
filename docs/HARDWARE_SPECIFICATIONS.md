@@ -8,11 +8,11 @@ Research date: 2026-10-04. **PROVEN** means a manufacturer/API fact or an identi
 
 **PROVEN — local observation:** SSDP from the actual television on 2026-10-04 reports `WebOS/4.1.0 UPnP/1.0`. Its UPnP description reports modelNumber `55UK6700YVD`, friendlyName `[LG] webOS TV UK6700YVD`, UUID `00000000-0000-4000-8000-000000000001`. Host at inspection was `192.0.2.4`, with ports 3000 and 3001 reachable from both Mac LAN interfaces. This is webOS 4.1 family evidence; installed LG firmware build is **OPEN QUESTION**. Do not equate a support-site downloadable firmware with installed firmware or apply webOS 26-specific regressions as fact.
 
-**PROVEN — physical:** Windows CLI pairing, input enumeration and HDMI 3 switching. MyRemote discovery, registration, Connected and Power Off.
+**PROVEN — physical:** Windows CLI pairing, input enumeration and HDMI 3 switching. MyRemote discovery, registration, Connected, Power Off, and latest HDMI 3/Xiaomi → HDMI 2/Mac mini switching after customer approval refresh.
 
-**FAILED:** MyRemote `tv/switchInput` returns 401 even after fresh pairing and authorization refresh; previous Wake-on-LAN did not wake the TV. A registration acknowledgement does not establish all requested rights.
+**FAILED — historical:** earlier MyRemote input control returned 401 even after fresh pairing and authorization refresh; the latest customer session now switches inputs successfully; previous Wake-on-LAN did not wake the TV. A registration acknowledgement does not establish all requested rights.
 
-**IMPLEMENTED BUT UNPROVEN:** SSAP WSS 3001, stored key/pin, input-ID mapping, alternate launch using a TV-reported input appId, revised LAN-directed WOL and bounded confirmation of a registered connection. No plaintext downgrade, vendor impersonation, test signature or TV settings change.
+**PROVEN — implementation/automation:** SSAP WSS 3001, stored key/pin and input-ID mapping; physical input switching is also confirmed. **IMPLEMENTED BUT UNPROVEN independently:** alternate launch using a TV-reported input appId (successful physical calls were not traced), revised LAN-directed WOL and bounded confirmation of a registered connection. No plaintext downgrade, vendor impersonation, test signature or TV settings change.
 
 **OPEN QUESTION:** exact permission/firmware distinction from the unnamed Windows CLI; whether launcher fallback is allowed by the existing TV grant; standby NIC reception and Mobile TV On state. The app uses unsigned rights following [LG Connect SDK](https://github.com/ConnectSDK/Connect-SDK-Android-Core/blob/master/src/com/connectsdk/service/webos/WebOSTVServiceSocketClient.java). A 401 on one command must not invalidate a grant known to support Power Off. See [LG protocol](LG_WEBOS_PROTOCOL.md).
 
@@ -36,7 +36,7 @@ Installation-only wake addresses: wired `02:00:00:00:00:03`, wireless `02:00:00:
 
 **PROVEN — static vendor-app observation:** Samsung-signed Audio Remote 1.5.16 uses Bluetooth Classic RFCOMM, SPP UUID `00001101-0000-1000-8000-00805f9b34fb`, and a proprietary framed stream. Volume and mute are explicit control packets; they do not require A2DP playback or generic AVRCP. The verified public artifact, hashes, command vectors and research boundaries are recorded in [Samsung protocol](SAMSUNG_M360_PROTOCOL.md). This establishes what the vendor app sends, not current MyRemote physical success.
 
-**IMPLEMENTED BUT UNPROVEN:** independent RFCOMM adapter, existing Android bond reuse, permission/setup, app-start/status negotiation, volume/mute, response validation, timeout/cancellation and reconnect. Power is withheld: vendor power-toggle bytes exist, but toggle is not a reliable explicit wake/off contract and standby availability is unmeasured. Bluetooth Power may activate Bluetooth playback/input; the app does not change the soundbar away from D.IN.
+**PROVEN — physical:** the independent RFCOMM adapter successfully completed setup and volume up/down/mute/unmute in the customer session with MyRemote 8a1c428. Android bond reuse, response validation and timeout/cancellation/reconnect also have automated coverage; extended physical reconnect reliability remains unmeasured. Power is withheld: vendor power-toggle bytes exist, but toggle is not a reliable explicit wake/off contract and standby availability is unmeasured. Bluetooth Power may activate Bluetooth playback/input; the app does not change the soundbar away from D.IN.
 
 ## Sources and activity safety
 

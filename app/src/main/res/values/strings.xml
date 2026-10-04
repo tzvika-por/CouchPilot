@@ -73,4 +73,6 @@
     <string name="error_security">The device identity could not be verified. Open setup to review pairing.</string>
     <string name="error_unavailable">This control is currently unavailable on the selected device.</string>
     <string name="error_generic">The action could not be completed. Open device setup to reconnect.</string>
+    <string name="unmute">Unmute</string>
+    <string name="mute_toggle">Mute or unmute</string>
 </resources>

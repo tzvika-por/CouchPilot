@@ -1,5 +1,8 @@
 package com.myremote.app.ui
 
+import androidx.annotation.DrawableRes
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Arrangement
@@ -87,13 +90,20 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
 
             SectionTitle(R.string.sound)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                RemoteButton(stringResource(R.string.volume_down), "volume_down", Modifier.weight(1f)) {
+                RemoteButton(stringResource(R.string.volume_down), "volume_down", Modifier.weight(1f), icon = R.drawable.ic_volume_down) {
                     onAction(RemoteAction.VolumeDown)
                 }
-                RemoteButton(stringResource(R.string.mute), "mute", Modifier.weight(1f)) {
+                RemoteButton(
+                    stringResource(when (state.soundbarMuted) {
+                        true -> R.string.unmute
+                        false -> R.string.mute
+                        null -> R.string.mute_toggle
+                    }), "mute", Modifier.weight(1f),
+                    icon = if (state.soundbarMuted == true) R.drawable.ic_volume_up else R.drawable.ic_volume_off,
+                ) {
                     onAction(RemoteAction.Mute)
                 }
-                RemoteButton(stringResource(R.string.volume_up), "volume_up", Modifier.weight(1f)) {
+                RemoteButton(stringResource(R.string.volume_up), "volume_up", Modifier.weight(1f), icon = R.drawable.ic_volume_up) {
                     onAction(RemoteAction.VolumeUp)
                 }
             }
@@ -285,16 +295,26 @@ private fun RemoteButton(
     tag: String,
     modifier: Modifier = Modifier,
     emphasized: Boolean = false,
+    @DrawableRes icon: Int? = null,
     onClick: () -> Unit,
 ) {
     val buttonModifier = modifier.height(58.dp).testTag(tag)
     if (emphasized) {
         Button(onClick = onClick, modifier = buttonModifier, contentPadding = ButtonDefaults.ContentPadding) {
-            Text(label, textAlign = TextAlign.Center, maxLines = 2)
+            RemoteButtonContent(label, icon)
         }
     } else {
         OutlinedButton(onClick = onClick, modifier = buttonModifier, contentPadding = ButtonDefaults.ContentPadding) {
-            Text(label, textAlign = TextAlign.Center, maxLines = 2)
+            RemoteButtonContent(label, icon)
         }
+    }
+}
+
+@Composable
+private fun RemoteButtonContent(label: String, @DrawableRes icon: Int?) {
+    if (icon != null) {
+        Icon(painterResource(icon), contentDescription = label, modifier = Modifier.size(28.dp))
+    } else {
+        Text(label, textAlign = TextAlign.Center, maxLines = 2)
     }
 }

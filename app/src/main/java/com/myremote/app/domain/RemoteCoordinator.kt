@@ -34,6 +34,11 @@ class RemoteCoordinator(
         return state
     }
 
+    fun updateSoundbarMute(muted: Boolean?): RemoteState {
+        state = state.copy(soundbarMuted = muted)
+        return state
+    }
+
     suspend fun dispatch(action: RemoteAction): RemoteState = actionMutex.withLock {
         try {
             execute(action)

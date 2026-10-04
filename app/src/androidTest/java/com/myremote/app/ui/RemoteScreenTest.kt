@@ -1,5 +1,9 @@
 package com.myremote.app.ui
 
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.runtime.mutableStateOf
+import androidx.test.platform.app.InstrumentationRegistry
+import com.myremote.app.R
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -44,6 +48,30 @@ class RemoteScreenTest {
             RemoteAction.Key(com.myremote.app.domain.RemoteKey.REWIND),
             RemoteAction.Key(com.myremote.app.domain.RemoteKey.FAST_FORWARD)), actions)
     }
+    @Test fun soundControlsAreAccessibleIconsAndMuteFollowsReportedState() {
+        val state = mutableStateOf(RemoteState())
+        val actions = mutableListOf<RemoteAction>()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        composeRule.setContent {
+            RemoteTheme { RemoteScreen(state.value, onAction = { actions += it }) }
+        }
+        composeRule.onNodeWithTag("volume_down").assertContentDescriptionEquals(context.getString(R.string.volume_down))
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("volume_up").assertContentDescriptionEquals(context.getString(R.string.volume_up))
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("mute").assertContentDescriptionEquals(context.getString(R.string.mute_toggle))
+            .performScrollTo().performClick()
+        composeRule.runOnIdle { state.value = state.value.copy(soundbarMuted = true) }
+        composeRule.onNodeWithTag("mute").assertContentDescriptionEquals(context.getString(R.string.unmute))
+            .performScrollTo().performClick()
+        composeRule.runOnIdle { state.value = state.value.copy(soundbarMuted = false) }
+        composeRule.onNodeWithTag("mute").assertContentDescriptionEquals(context.getString(R.string.mute))
+        for (label in listOf(R.string.volume_down, R.string.volume_up, R.string.mute, R.string.unmute)) {
+            composeRule.onNodeWithText(context.getString(label)).assertDoesNotExist()
+        }
+        assertEquals(listOf(RemoteAction.VolumeDown, RemoteAction.VolumeUp, RemoteAction.Mute, RemoteAction.Mute), actions)
+    }
+
     @Test fun protocolErrorIsNeverRenderedInMainRemote() {
         composeRule.setContent {
             RemoteTheme { RemoteScreen(RemoteState(errorMessage = "raw protocol error 401"), onAction = {}) }

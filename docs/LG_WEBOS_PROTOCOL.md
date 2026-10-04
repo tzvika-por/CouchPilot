@@ -2,7 +2,7 @@
 
 ## Evidence first
 
-**PROVEN:** Windows CLI pairing/input enumeration/direct HDMI 3 switch; MyRemote discovery/registration/Connected and Power Off. **FAILED:** MyRemote input switching returns 401 after both fresh pairing and authorization refresh; previous WOL fails. The earlier stale-grant hypothesis and CONTROL_DISPLAY addition did not establish a fix. **OPEN QUESTION:** exact authorization difference from the unnamed working Windows CLI. Its registration transcript/key is not available on the Mac, and no Android device is connected for development inspection. No additional pairing prompt was initiated from the Mac.
+**PROVEN:** Windows CLI pairing/input enumeration/direct HDMI 3 switch; MyRemote discovery/registration/Connected, Power Off, and (latest customer session on 8a1c428) HDMI 3/Xiaomi → HDMI 2/Mac mini switching after authorization refresh/TV approval. **FAILED — historical:** input 401 on previous builds, including prior refresh attempts; previous WOL fails. The earlier stale-grant hypothesis and CONTROL_DISPLAY addition did not establish a fix. **OPEN QUESTION:** exact authorization difference from the unnamed working Windows CLI. Its registration transcript/key is not available on the Mac, and no Android device is connected for development inspection. No additional pairing prompt was initiated from the Mac.
 
 On 2026-10-04 the actual LG advertises webOS 4.1, modelNumber 55UK6700YVD, at 192.168.7.4. Ports 3000/3001 and SSDP are reachable on Ethernet and Wi-Fi. WSS is already physically usable. Newer webOS 26 signature reports do not establish this model's cause.
 
@@ -24,7 +24,7 @@ First path: `ssap://tv/switchInput` with object payload `{inputId: "HDMI_N"}`. T
 
 Alternate path, only after input-switch 401: retain the TV's returned `devices[].appId` and request `ssap://system.launcher/launch` with `{id: reportedAppId}`. Launcher is an established SSAP API and LAUNCH is in [LG's open permission set](https://connectsdk.com/en/latest/apis-and/and-webostvservice.html). Never synthesize com.webos.app.hdmiN or use a user-editable source label. Missing appId or launcher denial fails without changing selected activity or discarding the grant. No fallback after timeout/transport failures, since the original switch may have executed.
 
-**IMPLEMENTED BUT UNPROVEN:** this fallback against the real LG and whether its retained key allows launch. It is a separate command path, not a proven root-cause fix. Structured logs distinguish switch_input/launch_input denied or accepted and preserve numeric 401 without key/payload dumps.
+**PROVEN — product outcome:** input switching succeeds in the latest customer session. **OPEN QUESTION:** whether those successful calls used direct switchInput or launcher fallback; the customer report contains no endpoint trace. The fallback is not independently proven as the root-cause fix. Structured logs distinguish switch_input/launch_input denied or accepted and preserve numeric 401 without key/payload dumps.
 
 ## Power and connection lifecycle
 
@@ -35,3 +35,7 @@ Wake packet is standard 102 bytes, directed to the selected LAN IPv4 prefix's br
 Unexpected disconnect retries at 5/10/20/30/60 seconds. App backgrounding closes sockets, discovery and pending work; returning reconnects stored devices. Registration errors stop aggressive retries. Local tests cover actual TLS/WebSocket exchange, pin mismatch, UDP packet receipt, denied-input grant retention, reported-app fallback, revision migration, correlation, persistence and cancellation.
 
 **OPEN QUESTION:** why this TV's input authorization differs from the working CLI; its actual firmware/grants/standby receiver state. The evidence supports an endpoint-specific authorization rejection, not a network or HDMI-ID diagnosis. No TV/router setting was changed and no repeated re-pair experiment is requested.
+
+## Approval reuse
+
+The customer's successful refresh generated a stored grant and cleared authorization_refresh_required. Later ordinary app starts send that client-key with forcePairing=false. Backgrounding closes only connections; it retains pairing. Tests cover refresh → background/foreground → new controller with the same stored preferences. Another approval is expected only if local credentials are removed or the TV rejects/revokes them; approval every launch is not intended behavior. The observed refresh cause was not captured, so it is not attributed definitively to migration.

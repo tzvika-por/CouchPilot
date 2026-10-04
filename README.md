@@ -4,10 +4,10 @@ Native Android remote for LG 55UK6700YVD, Xiaomi Google TV Box S (3rd Gen), and 
 
 ## Current evidence
 
-- **PROVEN physically:** MyRemote LG discovery, registration, Connected and Power Off; Windows CLI HDMI 3 switching; Samsung Audio Remote volume/mute on optical D.IN; ADB yes+ key/macro semantics.
-- **FAILED physically:** MyRemote LG input permission denial persisted after refresh; prior LG wake; phone-to-Xiaomi TCP reachability.
-- **IMPLEMENTED BUT UNPROVEN physically:** new LG input launcher fallback and WOL targeting, MyRemote Samsung RFCOMM volume/mute, MyRemote Xiaomi pairing/keys/wake.
-- **OPEN QUESTION:** LG's precise authorization difference from the working CLI, Samsung physical SDP/status interoperability, and the currently usable Xiaomi endpoint/network path. The current implementation is a validation build, not a completed useful release.
+- **PROVEN physically:** MyRemote LG discovery, registration, Connected, Power Off and HDMI 3/Xiaomi → HDMI 2/Mac mini switching; MyRemote Samsung setup, volume up/down and mute/unmute; Samsung Audio Remote volume/mute on optical D.IN; ADB yes+ key/macro semantics.
+- **FAILED physically / unresolved:** prior LG wake and phone-to-Xiaomi TCP reachability. Earlier LG input denial is historical; input switching now succeeds after the customer refreshed and approved authorization with build 8a1c428.
+- **IMPLEMENTED BUT UNPROVEN physically:** revised LG WOL targeting and MyRemote Xiaomi pairing/keys/wake. Source switching succeeded; the exact direct-versus-launcher path was not captured.
+- **OPEN QUESTION:** LG's precise authorization difference from the working CLI, the currently usable Xiaomi endpoint/network path. The current implementation is a validation build, not a completed useful release.
 
 ## Build and automated verification
 
@@ -28,7 +28,7 @@ Xiaomi: discover Google TV or enter hostname/IP, then enter the TV code. All ava
 
 Samsung: Set up soundbar → allow Bluetooth on Android 12+ → select the existing paired Samsung. Android stores the bond; MyRemote stores the selection and connects directly to the control service. Keep D.IN and close Samsung Audio Remote to avoid competing control sessions. No new Bluetooth scan/location permission, A2DP playback or generic AVRCP workaround is used. Forget removes MyRemote selection without removing the Android bond.
 
-Connections are active while the app is foreground and close in background. Source buttons use stable HDMI IDs. Watch yes+ selects HDMI 3; launching yes+ or waking it automatically is withheld until reliable. Global Xiaomi keys remain available on all sources. Volume/mute always targets Samsung. There is no Power Off All.
+Connections are active while the app is foreground and close in background. Source buttons use stable HDMI IDs. Watch yes+ selects HDMI 3; launching yes+ or waking it automatically is withheld until reliable. Global Xiaomi keys remain available on all sources. Volume/mute always targets Samsung. Sound buttons use speaker icons with localized accessibility labels. After a valid mute status reply, the middle icon offers the opposite action (unmute when muted); unknown status uses a neutral mute toggle. There is no Power Off All.
 
 ## Project map
 

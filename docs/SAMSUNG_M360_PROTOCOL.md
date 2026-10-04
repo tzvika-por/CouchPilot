@@ -2,7 +2,7 @@
 
 ## Evidence and provenance
 
-**PROVEN — physical:** Samsung Audio Remote controls volume and mute on the actual HW-M360 while it remains on D.IN.
+**PROVEN — physical:** Samsung Audio Remote controls volume and mute on the actual HW-M360 while it remains on D.IN. The latest customer session with MyRemote 8a1c428 confirms setup, Volume Up, Volume Down, Mute and Unmute with our native adapter.
 
 Public documentation does not publish this binary protocol. Research found [Samsung's official app listing](https://play.google.com/store/apps/details?id=com.samsung.samsungband), model documentation and no maintained public M360 packet implementation. To avoid customer Bluetooth captures, a publicly downloadable [Audio Remote 1.5.16 artifact](https://apkpure.net/audio-remote/com.samsung.samsungband/download) was downloaded into temporary development storage and inspected statically. It was not installed or run. Android `apksigner verify --print-certs` validated its signature:
 
@@ -37,8 +37,12 @@ Four-second status timeouts close the stream to prevent late replies satisfying 
 
 Setup lists already-paired Samsung/soundbar devices; the customer's existing Samsung Audio Remote bond is reusable. On Android 12+, [BLUETOOTH_CONNECT](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions) needs runtime Nearby Devices consent. Earlier Android uses normal BLUETOOTH permission. There is no app Bluetooth scan, location permission, hidden channel reflection, A2DP connection, AVRCP proxy, input switch, media session or audio playback. If a different installation has no bond, Android Bluetooth settings provides ordinary pairing. The vendor's hidden RFCOMM channel 1/2 fallback is deliberately not used; an SDP failure remains diagnosable.
 
-**IMPLEMENTED BUT UNPROVEN:** production Samsung setup, RFCOMM initialization, volume and mute. Deterministic packet/status/lifecycle tests validate implementation against observed vendor definitions; emulator Bluetooth does not validate real SDP/radio compatibility. **OPEN QUESTION:** actual M360 status timing, service availability alongside Audio Remote, and standby power semantics. Close Audio Remote during the final single session to avoid two control clients competing. **ASSUMED:** SPP service is discoverable by UUID on this soundbar; physical validation must confirm this. No generic AVRCP assumption is made.
+**PROVEN — physical:** production setup, standard SPP UUID connection, RFCOMM initialization, volume and mute/unmute now succeed on the actual soundbar. Deterministic packet/status/lifecycle tests remain independent automated evidence. **OPEN QUESTION:** long-term status timing/reliability, concurrent Audio Remote sessions and standby power semantics. No generic AVRCP assumption is made. No further customer session is requested for these already confirmed controls.
 
 ## Power boundary
 
 A vendor power-toggle packet was identified (`FF 0B 02 20 01`), but is not sent or exposed as an explicit power command. It cannot prove wake when RFCOMM is unavailable in standby, and toggling an unknown state could turn off an active soundbar. Optical Auto Power Link and Bluetooth Power are environment settings; they were not inspected or changed. Soundbar power and Power Off All remain unimplemented pending reliable individual power semantics.
+
+## Mute indicator
+
+The middle sound button is icon-only with localized TalkBack labels. SamsungSession returns the validated mute status; the controller exposes a nullable status flow. The icon offers unmute only when the TV-independent soundbar response reports muted. A successful mute response reporting false offers mute. On a new connection or volume change the state is unknown (volume may clear mute), so the button uses a neutral mute toggle. Disconnect/failure clears it. No optimistic tap-based inversion, persisted guessed state or extra protocol query is used.

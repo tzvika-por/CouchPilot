@@ -73,4 +73,6 @@
     <string name="error_security">לא ניתן לאמת את זהות המכשיר. פתחו את הגדרות החיבור לבדיקת הצימוד.</string>
     <string name="error_unavailable">הפקד הזה אינו זמין כרגע במכשיר שנבחר.</string>
     <string name="error_generic">לא ניתן להשלים את הפעולה. פתחו את הגדרות המכשיר כדי להתחבר מחדש.</string>
+    <string name="unmute">ביטול השתקה</string>
+    <string name="mute_toggle">השתקה או ביטול השתקה</string>
 </resources>
