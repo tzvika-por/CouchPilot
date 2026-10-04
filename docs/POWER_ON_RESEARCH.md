@@ -1,6 +1,6 @@
 # Power-on feasibility research
 
-Latest update 2026-10-04: **LG wake succeeds physically** on `a8b9fcb6de580b54e6d57da1e38c6e5a8ba8fcf1` after enabling Turn on via Wi-Fi. Both LG wake settings were previously off; Bluetooth wake remains off. Samsung wake remains unsuccessful. The original investigation below inspected `eba8ec5`; its identified implementation gaps were repaired in `a8b9fcb`. The latest follow-up changes documentation only; no new APK or device setting change.
+Latest update 2026-10-04: **LG wake succeeds physically** on `a8b9fcb6de580b54e6d57da1e38c6e5a8ba8fcf1` after enabling Turn on via Wi-Fi. Both LG wake settings were previously off; Bluetooth wake remains off. Samsung optical wake with the TV is now physically confirmed; standalone MyRemote Bluetooth wake remains unsuccessful. The original investigation below inspected `eba8ec5`; its identified implementation gaps were repaired in `a8b9fcb`. The latest follow-up changes documentation only; no new APK or device setting change.
 
 ## Earlier physical evidence — before enabling LG network wake
 
@@ -13,7 +13,7 @@ Losing a control connection prevents delivery on that connection. Standby hardwa
 | Device | Available wake route | Engineering conclusion |
 |---|---|---|
 | LG 55UK6700YVD | Mobile TV On / Wake-on-LAN; model also lists Bluetooth wake | Physically successful on the installed APK after enabling Turn on via Wi-Fi. Disabled network wake was the demonstrated prerequisite blocking the latest attempt. No additional code or pairing change was needed; long-term reliability is not established by one cycle. |
-| Samsung HW-M360 | Optical Auto Power Link; paired-device Bluetooth Power On | Optical wake fits the existing D.IN installation. Direct SPP-only wake remains unverified; Bluetooth audio wake may change the input. |
+| Samsung HW-M360 | Optical Auto Power Link; paired-device Bluetooth Power On | Optical wake with the TV is physically confirmed after the Auto Power Link sequence. Standalone SPP wake remains unsuccessful; Bluetooth audio wake is separate and may change the input. |
 | Xiaomi TV Box S (3rd Gen) | Original remote; possibly compatible HDMI-CEC or a standby network receiver | No documented reliable disconnected wake route found for a normal Android phone using this production HID adapter. Firmware/standby compatibility is unresolved, not proven impossible. |
 
 ## LG: supported hardware, unresolved implementation/configuration outcome
@@ -91,3 +91,11 @@ The existing Samsung Power intention now attempts one bounded native connection 
 **PROVEN — customer report:** both LG Mobile TV On options were off. The customer enabled **Turn on via Wi-Fi** only, leaving Bluetooth off, and confirmed success in the requested single LG wake check using the already installed a8b9fcb APK. This supersedes the earlier LG wake failure/unknown-setting status. Disabled network wake was a demonstrated blocker for the latest attempt: enabling it was the only instructed change before success. No new APK, re-pair, key refresh or router change was required. The earlier configuration migration remains independently justified by code/tests; this result does not establish that the phone previously had missing MACs.
 
 This confirms the observed LG On outcome, not repeated/extended-standby reliability, a panel-state API, Samsung optical/Bluetooth wake or Xiaomi wake. The customer answered the LG-specific check; no soundbar success is inferred. No repeat LG/source/volume/blinking session is requested. Documentation-only update: application and shared APK unchanged, prior automated gates retained, documentation diff/link checks run. No push, tag or release.
+
+## Soundbar optical wake physically succeeds
+
+**PROVEN — latest customer report:** after the focused Auto Power Link configuration-and-wake sequence, the customer confirms the soundbar turns on with the LG. The installed APK was unchanged. This establishes TV-following optical/D.IN wake in this installation and supersedes its unproven status. The customer did not report the setting's initial display, so do not claim Auto Power Link was originally disabled. The result does not prove independent SPP/Bluetooth wake, extended standby reliability, or MyRemote volume/mute reconnection after this cycle. Standalone soundbar wake through the earlier app reconnect remains unsuccessful. Xiaomi wake is unchanged.
+
+**Code-proven continuation:** after MyRemote's soundbar Off toggle, persisted reconnect suppression survives Activity/process return. Optical wake alone cannot clear it; the previous volume/mute path failed immediately while disconnected. A new explicit volume/mute intention now uses the existing bounded 15-second connection/status initialization before sending the requested sound command exactly once. It never sends a power toggle, selects an audio input or re-pairs. Failure/cancellation restores suppression and closes only the owned attempt; ordinary app switching still honors Off. Existing connected commands retain their live session and are not retried after uncertain writes. Four deterministic regression tests cover Off/process recreation/volume recovery, mute recovery, silent service failure and cancelled native connect. This is automated reconnection evidence, not an additional physical control claim.
+
+No new physical repeat of LG/input/volume/blinking is requested. Remaining TV-independent soundbar wake and Xiaomi standby compatibility are kept separate. Application validation/delivery for the reconnect change is recorded below after gates complete; no push, tag or release.

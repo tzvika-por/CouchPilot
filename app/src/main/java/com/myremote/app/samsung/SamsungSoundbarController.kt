@@ -105,6 +105,9 @@ class SamsungSoundbarController internal constructor(
     }
 
     private suspend fun command(operation: String, action: suspend (SamsungSession) -> Unit) {
+        // Optical Auto Power Link can wake the bar while post-Off reconnect remains suspended.
+        // A new sound-button intention may restore control, but never replay a power toggle.
+        if (session == null || connectionState != ConnectionState.CONNECTED) attemptWake()
         val active = session?.takeIf { connectionState == ConnectionState.CONNECTED }
             ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "Samsung soundbar is not connected")
         try { action(active); RemoteDiagnostics.record("samsung", operation, "status_received") }

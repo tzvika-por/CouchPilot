@@ -228,6 +228,90 @@ class SamsungControllerTest {
         controller.close()
     }
 
+    @Test fun soundIntentionRestoresControlAfterPowerOffAndProcessRecreationWithoutToggle() = runTest {
+        var suspended = false
+        val transports = mutableListOf<ScriptedSamsungTransport>()
+        fun create() = SamsungSoundbarController(SamsungTransportFactory {
+            ScriptedSamsungTransport().also { transports += it }
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val first = create()
+        first.connectStored(); runCurrent()
+        first.togglePower(); runCurrent()
+        assertTrue(suspended)
+        first.close()
+        val reopened = create()
+        reopened.connectStored(); runCurrent()
+        assertEquals(1, transports.size) // Opening the UI alone respects the Off intention.
+        val volume = async { reopened.volumeDown() }
+        runCurrent(); volume.await()
+        assertFalse(suspended)
+        assertEquals(ConnectionState.CONNECTED, reopened.connectionState)
+        assertEquals(2, transports.size)
+        assertEquals(1, transports.last().sent.count { it == "ff0b037f0100" })
+        assertEquals(0, transports.last().sent.count { it == "ff0b022001" })
+        reopened.mute()
+        assertEquals(true, reopened.muted.value)
+        assertEquals(2, transports.size) // Existing live connection is retained.
+        reopened.close()
+    }
+
+    @Test fun disconnectedMuteRestoresControlBeforeExactlyOneMuteToggle() = runTest {
+        var suspended = true
+        val transport = ScriptedSamsungTransport()
+        val controller = SamsungSoundbarController(SamsungTransportFactory { transport },
+            CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val mute = async { controller.mute() }
+        runCurrent(); mute.await()
+        assertEquals(true, controller.muted.value)
+        assertFalse(suspended)
+        assertEquals(1, transport.sent.count { it == "ff0b027400" })
+        assertEquals(0, transport.sent.count { it == "ff0b022001" })
+        controller.close()
+    }
+
+    @Test fun unavailableSoundCommandStopsWithoutReplayOrBackgroundRetries() = runTest {
+        var suspended = true
+        var attempts = 0
+        val transport = ScriptedSamsungTransport(autoReply = false)
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            attempts++; transport
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val volume = async {
+            try { controller.volumeUp(); fail("No status connection") }
+            catch (error: DeviceFailure) { assertEquals(FailureKind.WAKE_UNCONFIRMED, error.kind) }
+        }
+        runCurrent(); advanceTimeBy(4_001); runCurrent(); volume.await()
+        assertTrue(suspended)
+        assertTrue(transport.closed)
+        assertEquals(0, transport.sent.count { it == "ff0b037f0101" })
+        assertEquals(0, transport.sent.count { it == "ff0b022001" })
+        controller.connectStored(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, attempts)
+        controller.close()
+    }
+
+    @Test fun cancelledSoundReconnectRestoresSuppressionAndCancelsTransportOwner() = runTest {
+        var suspended = true
+        var cancelled = false
+        var attempts = 0
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            attempts++
+            try { kotlinx.coroutines.awaitCancellation() } finally { cancelled = true }
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val volume = async { controller.volumeUp() }
+        runCurrent(); volume.cancel(); runCurrent()
+        assertTrue(cancelled)
+        assertTrue(suspended)
+        controller.connectStored(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, attempts)
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        controller.close()
+    }
+
     @Test fun permissionDenialDoesNotReconnectAggressively() = runTest {
         var calls = 0
         val controller = SamsungSoundbarController(SamsungTransportFactory {

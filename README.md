@@ -4,7 +4,7 @@ Native Android remote for LG 55UK6700YVD, Xiaomi Google TV Box S (3rd Gen), and 
 
 ## Current evidence
 
-Latest customer confirmation: **LG power-on now works physically** with the existing a8b9fcb APK after enabling General → Mobile TV On → Turn on via Wi-Fi. Both wake settings were previously off; Bluetooth wake remains off. Background blinking is resolved and all three Off controls work. Samsung and Xiaomi wake remain unresolved. [Power-on research](docs/POWER_ON_RESEARCH.md) records the prerequisite and evidence boundaries.
+Latest customer confirmation: **LG power-on now works physically** with the existing a8b9fcb APK after enabling General → Mobile TV On → Turn on via Wi-Fi. Both wake settings were previously off; Bluetooth wake remains off. Background blinking is resolved and all three Off controls work. Samsung optical wake with the TV is now physically confirmed after the Auto Power Link sequence; standalone soundbar Bluetooth wake and Xiaomi wake remain unresolved. [Power-on research](docs/POWER_ON_RESEARCH.md) records the prerequisite and evidence boundaries.
 
 - **PROVEN physically:** MyRemote LG discovery, registration, Connected, Power Off and HDMI 3/Xiaomi → HDMI 2/Mac mini switching; MyRemote Samsung setup, volume up/down and mute/unmute; Samsung Audio Remote volume/mute on optical D.IN; ADB yes+ key/macro semantics. The Galaxy/Xiaomi Bluetooth bond was established, Xiaomi retained the phone accessory, and MyRemote eventually reported Connected after manual recovery.
 - **FAILED historically:** LG wake before enabling Mobile TV On. Phone-to-Xiaomi TCP reachability remains unresolved. Earlier LG input denial is historical; input switching now succeeds after the customer refreshed and approved authorization with build 8a1c428.
@@ -78,4 +78,10 @@ Latest wake candidate: **115 JVM tests and 17 API 35 emulator tests passed**; bo
 
 ### Latest wake result
 
-The customer confirms LG wake succeeds on `a8b9fcb` after enabling Turn on via Wi-Fi. This resolves the latest LG wake blocker; Samsung wake remains unsuccessful and optical wake has not yet been independently confirmed. Existing control and background-retention successes remain accepted. See [power-on research](docs/POWER_ON_RESEARCH.md) and [device validation](docs/DEVICE_VALIDATION.md).
+The customer confirms LG wake succeeds on `a8b9fcb` after enabling Turn on via Wi-Fi. This resolves the latest LG wake blocker. The customer also confirms the HW-M360 wakes with the TV through optical Auto Power Link. Standalone Bluetooth wake remains unsuccessful; this is distinct from the working TV-following wake route. Existing control and background-retention successes remain accepted. See [power-on research](docs/POWER_ON_RESEARCH.md) and [device validation](docs/DEVICE_VALIDATION.md).
+
+### Soundbar optical wake and control recovery
+
+The customer confirms the soundbar wakes with the TV through Auto Power Link on optical D.IN. Keep LG Turn on via Wi-Fi and soundbar Auto Power Link enabled. Independent soundbar Bluetooth wake and Xiaomi standby wake remain unresolved. If MyRemote's soundbar control is disconnected after wake, the first volume/mute press now attempts bounded reconnection and sends the requested sound command once, with no power-toggle replay, input change or setup Retry. Automatic reconnect suppression still survives ordinary app switching and process return after Off.
+
+Current validation: **119 JVM tests and 17 actual API 35 instrumentation tests pass**, both builds/lint variants pass (0 errors/20 advisory warnings each), Compose compiles, and resources/documentation checks pass. The verified update is in `/Volumes/Expansion/Videos/MyRemote.apk`. No physical repeat test is requested. UI redesign awaits the owner's specifics.
