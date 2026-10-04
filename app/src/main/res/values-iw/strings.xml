@@ -95,4 +95,6 @@
     <string name="connect_remote">חיבור השלט</string>
     <string name="remote_background_guidance">אפשר להשתמש באפליקציות אחרות או לנעול את הטלפון. השלט נשאר מחובר.</string>
     <string name="remote_paused_guidance">חיבורי השלט מושהים. המכשירים נשארים דולקים.</string>
+    <string name="error_wake_not_configured">לא נשמרה כתובת להפעלת הטלוויזיה ממצב המתנה. התחברו כשהטלוויזיה פועלת כדי להשלים את ההגדרה.</string>
+    <string name="error_wake_unconfirmed">המכשיר לא התחבר מחדש לאחר ניסיון ההפעלה. ייתכן שיש להפעיל במכשיר את האפשרות להפעלה ממצב המתנה.</string>
 </resources>

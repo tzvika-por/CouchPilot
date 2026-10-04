@@ -25,7 +25,7 @@ class LgTlsIntegrationTest {
                     val request = JSONObject(text)
                     val id = request.getString("id")
                     val response = when (request.getString("type")) {
-                        "hello" -> JSONObject().put("type", "hello")
+                        "hello" -> JSONObject().put("type", "hello").put("payload", JSONObject().put("deviceUUID", "00000000-0000-4000-8000-000000000001"))
                         "register" -> {
                             assertEquals("saved-key", request.getJSONObject("payload").getString("client-key"))
                             JSONObject().put("type", "registered").put("payload", JSONObject().put("client-key", "saved-key"))
@@ -41,6 +41,7 @@ class LgTlsIntegrationTest {
             try {
                 withTimeout(5_000) {
                     assertEquals("saved-key", session.register("saved-key") { fail("Stored grant must not prompt") })
+                    assertEquals("00000000-0000-4000-8000-000000000001", session.deviceUuid)
                     assertEquals("tv.reported.hdmi", LgProtocol.inputs(session.request(LgProtocol.INPUT_LIST)).single().appId)
                     session.request(LgProtocol.SWITCH_INPUT, JSONObject().put("inputId", "HDMI_3"))
                 }

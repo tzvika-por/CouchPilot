@@ -20,13 +20,24 @@ internal class LgSsapSession(private val transport: LgTransport, private val sco
 
     val certificatePin: String get() = transport.certificatePin
 
-    suspend fun register(clientKey: String?, onApprovalNeeded: () -> Unit): String {
+    var deviceUuid: String? = null
+        private set
+
+    suspend fun register(clientKey: String?, expectedUuid: String? = null, onApprovalNeeded: () -> Unit): String {
         transport.send(LgProtocol.hello("myremote_hello"))
         // Older webOS implementations answer hello; registration also works if they do not.
         withTimeoutOrNull(2_500) {
             while (true) {
                 val message = LgProtocol.decode(transport.receive() ?: throw IOException("LG closed before registration"))
-                if (message.type == "hello") break
+                if (message.type == "hello") {
+                    deviceUuid = LgProtocol.deviceUuid(message)
+                    if (deviceUuid != null && expectedUuid != null &&
+                        deviceUuid != normalizedLgUuid(expectedUuid)) {
+                        throw com.myremote.app.domain.DeviceFailure(
+                            com.myremote.app.domain.FailureKind.SECURITY, "LG identity changed")
+                    }
+                    break
+                }
                 if (message.type == "error") {
                     LgProtocol.authorizationFailure(message)?.let { throw it }
                     throw IOException(message.error ?: "LG rejected hello")

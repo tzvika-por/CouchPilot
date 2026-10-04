@@ -63,6 +63,13 @@ internal object LgProtocol {
 
     fun clientKey(message: LgMessage): String? = message.payload?.optString("client-key")?.takeIf(String::isNotBlank)
 
+    fun deviceUuid(message: LgMessage): String? {
+        if (message.type != "hello") return null
+        val value = message.payload?.opt("deviceUUID") as? String ?: return null
+        val normalized = normalizedLgUuid(value) ?: return null
+        return normalized.takeIf { Regex("[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}").matches(it) }
+    }
+
     fun inputs(message: LgMessage): List<LgInput> {
         val devices = message.payload?.optJSONArray("devices") ?: throw IOException("webOS did not return an input list")
         return buildList {

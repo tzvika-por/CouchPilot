@@ -52,3 +52,11 @@ The middle sound button is icon-only with localized TalkBack labels. SamsungSess
 
 
 Background lifecycle update: app switching no longer closes RFCOMM. The connected-device service owns the connection until explicit Disconnect/destruction. Post-power automatic reconnect suppression remains persisted and respected by service startup; explicit setup Retry now reaches controller.retry directly. No power toggle is replayed on Activity return.
+
+## Explicit disconnected wake attempt — 2026-10-04
+
+`SoundbarController.togglePower()` retains its live-session off toggle. When disconnected, the same explicit Power intention now requests one native RFCOMM connection/status initialization, bounded to 15 seconds. It sends the existing app-start/volume-status messages, no power toggle, A2DP request, input-selection command or settings packet. A paired Bluetooth reconnection may wake Bluetooth Power On; SPP-only standby acceptance and physical on-state remain UNPROVEN. Connected means valid protocol status, not measured audio/power state.
+
+Before the first valid Connected status, failures do not retry. Failure/timeout/cancellation closes the owned attempt and persists automatic-connection suppression again; later foreground entry does not retry it. After successful initialization the ordinary bounded-backoff connection policy resumes. An older failed operation cannot close a replacement job. The tested uncertain off-write remains non-replayed; only a new explicit wake/Retry intention can resume connection.
+
+Optical Auto Power Link remains the installation-compatible candidate when LG wake brings back optical audio on D.IN. Its current setting is unknown; this patch does not change it. A soundbar Power tap can also reconnect MyRemote after an externally awakened soundbar, without sending a toggle that could turn it off again. Original off/volume/mute successes remain valid; physical wake through this new path is not yet established.

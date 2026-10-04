@@ -37,7 +37,7 @@ class LgTvController internal constructor(
     constructor(context: Context) : this(
         LgPairingStore(context), OkHttpLgTransportFactory(com.myremote.app.network.LanNetwork(context)), SsdpLgDiscovery(context.applicationContext),
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
-        { device -> LgWakeOnLan.send(context.applicationContext, device.wakeMacs) },
+        { device -> withContext(Dispatchers.IO) { LgWakeOnLan.send(context.applicationContext, device.wakeMacs) } },
     )
 
     private val _state = MutableStateFlow(savedState())
@@ -74,7 +74,7 @@ class LgTvController internal constructor(
     fun select(device: LgDevice) {
         stopDiscovery()
         // Device changes and grant writes must follow completion of the previous registration job.
-        connectSelected(retry = false, selected = LgInstallation.forSelectedDevice(device))
+        connectSelected(retry = false, selected = device)
     }
 
     fun connectStored() {
@@ -107,11 +107,7 @@ class LgTvController internal constructor(
             withContext(NonCancellable) { previous?.join() }
             currentCoroutineContext().ensureActive()
             if (selected != null) {
-                val existing = store.read()
-                if (existing?.device?.host != selected.host ||
-                    (existing.device.uuid != null && selected.uuid != null && existing.device.uuid != selected.uuid)) {
-                    store.select(selected)
-                }
+                store.selectOrUpdate(selected)
             }
             if (refreshAuthorization) store.clearAuthorization(requireRefresh = false)
             val saved = store.read() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return@launch }
@@ -128,11 +124,12 @@ class LgTvController internal constructor(
                 try {
                     val transport = transportFactory.connect(pairing.device.host, pairing.certificatePin)
                     current = LgSsapSession(transport, scope)
-                    val registeredKey = current.register(pairing.clientKey) {
+                    val registeredKey = current.register(pairing.clientKey, pairing.device.uuid) {
                         _state.value = ConnectionState.PAIRING
                     }
                     store.registered(registeredKey, current.certificatePin)
-                    pairing = pairing.copy(clientKey = registeredKey, certificatePin = current.certificatePin)
+                    current.deviceUuid?.let { store.learnedIdentity(it, current.certificatePin) }
+                    pairing = store.read() ?: throw IOException("LG configuration was removed")
                     session = current
                     // Endpoint denial must not discard a registration that still supports power off.
                     inputs = try { LgProtocol.inputs(current.request(LgProtocol.INPUT_LIST)) }
@@ -151,7 +148,8 @@ class LgTvController internal constructor(
                 } catch (error: Exception) {
                     if (!isActive) break
                     RemoteDiagnostics.record("lg", "connection", "failed", (error as? LgAuthorizationException)?.errorCode)
-                    terminalFailure = error is LgRegistrationException || error is LgAuthorizationException
+                    terminalFailure = error is LgRegistrationException || error is LgAuthorizationException ||
+                        (error is DeviceFailure && error.kind == FailureKind.SECURITY)
                     if (error is LgAuthorizationException) {
                         store.clearAuthorization()
                         _error.value = null
@@ -211,24 +209,44 @@ class LgTvController internal constructor(
         _state.value = ConnectionState.DISCONNECTED
     }
 
-    override suspend fun powerOn() = withContext(Dispatchers.IO) {
-        val device = store.read()?.device ?: throw IOException("Set up the LG TV first")
+    override suspend fun powerOn() {
+        val device = store.read()?.device ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "Set up the LG TV first")
+        if (device.wakeMacs.isEmpty() || device.wakeMacs.any { runCatching { LgWakeOnLan.packet(it) }.isFailure }) {
+            RemoteDiagnostics.record("lg", "wake", "missing_configuration")
+            throw DeviceFailure(FailureKind.WAKE_NOT_CONFIGURED, "LG wake address is missing or invalid")
+        }
         _state.value = ConnectionState.CONNECTING
+        var ownedJob: Job? = null
         try {
             wake(device)
+            RemoteDiagnostics.record("lg", "wake", "sent")
             retry()
-            // Sending UDP is not evidence of wake. Confirm registered connectivity within a bounded window.
+            ownedJob = connectionJob
+            // UDP send is not wake proof. Keep reconnection bounded and cancel it on failure.
             withTimeout(45_000) {
                 while (_state.value != ConnectionState.CONNECTED) {
-                    if (_state.value == ConnectionState.AUTHORIZATION_REQUIRED || _state.value == ConnectionState.ERROR)
-                        throw DeviceFailure(FailureKind.UNAVAILABLE, "LG wake connection failed")
+                    if (_state.value == ConnectionState.AUTHORIZATION_REQUIRED)
+                        throw DeviceFailure(FailureKind.PERMISSION_DENIED, "LG wake requires authorization")
+                    if (_state.value == ConnectionState.ERROR)
+                        throw DeviceFailure(FailureKind.WAKE_UNCONFIRMED, "LG wake connection failed")
                     delay(250)
                 }
             }
+            RemoteDiagnostics.record("lg", "wake", "connected")
         } catch (error: Exception) {
+            if (connectionJob === ownedJob) {
+                ownedJob?.cancel()
+                session?.close()
+                session = null
+                inputs = emptyList()
+                if (_state.value != ConnectionState.AUTHORIZATION_REQUIRED) _state.value = savedState()
+            } else if (ownedJob == null && _state.value == ConnectionState.CONNECTING) {
+                _state.value = savedState()
+            }
             if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) throw error
-            _state.value = ConnectionState.DISCONNECTED
-            throw DeviceFailure(FailureKind.NETWORK, "LG wake was not confirmed", error)
+            RemoteDiagnostics.record("lg", "wake", "unconfirmed")
+            if (error is DeviceFailure) throw error
+            throw DeviceFailure(FailureKind.WAKE_UNCONFIRMED, "LG wake was not confirmed", error)
         }
     }
 

@@ -62,6 +62,87 @@ class LgPairingStoreTest {
         assertEquals(false, store.read()!!.authorizationNeedsRefresh)
     }
 
+    private val targetUuid = "00000000-0000-4000-8000-000000000001"
+    private val targetMacs = listOf("02:00:00:00:00:03", "02:00:00:00:00:01")
+
+    @Test fun legacyWakeMigrationPersistsWithoutRevokingGrantPinOrRefreshState() {
+        val prefs = MemoryPreferences()
+        prefs.edit().putString("host", "192.0.2.8").putString("name", "LG")
+            .putString("uuid", "UUID:" + targetUuid.uppercase()).putString("client_key", "saved-key")
+            .putString("certificate_pin", "saved-pin").putInt("authorization_revision", 1)
+            .putBoolean("authorization_refresh_required", true).putString("unrelated", "keep").commit()
+        val store = LgPairingStore(prefs)
+        assertEquals(targetMacs, store.read()!!.device.wakeMacs)
+        assertEquals(targetMacs.joinToString(","), prefs.getString("wake_macs", null))
+        assertEquals("saved-key", store.read()!!.clientKey)
+        assertEquals("saved-pin", store.read()!!.certificatePin)
+        assertEquals(true, store.read()!!.authorizationNeedsRefresh)
+        assertEquals(1, prefs.getInt("authorization_revision", 0))
+        assertEquals("keep", prefs.getString("unrelated", null))
+        assertEquals(targetMacs, LgPairingStore(prefs).read()!!.device.wakeMacs)
+    }
+
+    @Test fun sameHostRediscoveryEnrichesManualSelectionWithoutPairingAgain() {
+        val prefs = MemoryPreferences()
+        val store = LgPairingStore(prefs)
+        store.select(LgDevice("Manual LG", "192.0.2.8"))
+        store.registered("saved-key", "saved-pin")
+        store.selectOrUpdate(LgDevice("Living room", "192.0.2.8", "55UK6700YVD", "uuid:$targetUuid"))
+        assertEquals(targetMacs, store.read()!!.device.wakeMacs)
+        assertEquals("Living room", store.read()!!.device.name)
+        assertEquals("saved-key", store.read()!!.clientKey)
+        assertEquals("saved-pin", store.read()!!.certificatePin)
+        assertEquals(false, store.read()!!.authorizationNeedsRefresh)
+    }
+
+    @Test fun sameUuidAddressChangePreservesPinGrantAndConfiguredMac() {
+        val store = LgPairingStore(MemoryPreferences())
+        val customMac = listOf("02:00:00:00:00:01")
+        store.select(LgDevice("LG", "192.0.2.8", "55UK6700YVD", "uuid:$targetUuid", customMac))
+        store.registered("saved-key", "saved-pin")
+        store.selectOrUpdate(LgDevice("LG", "192.0.2.9", uuid=targetUuid.uppercase()))
+        assertEquals("192.0.2.9", store.read()!!.device.host)
+        assertEquals("55UK6700YVD", store.read()!!.device.model)
+        assertEquals(customMac, store.read()!!.device.wakeMacs)
+        assertEquals("saved-key", store.read()!!.clientKey)
+        assertEquals("saved-pin", store.read()!!.certificatePin)
+    }
+
+    @Test fun differentTvAtSameAddressDoesNotInheritWakeMacsOrCredentials() {
+        val store = LgPairingStore(MemoryPreferences())
+        store.select(LgDevice("LG", "192.0.2.8", uuid=targetUuid))
+        store.registered("saved-key", "saved-pin")
+        store.selectOrUpdate(LgDevice("Other", "192.0.2.8", "55UK6700YVD", "other-uuid"))
+        assertEquals(emptyList<String>(), store.read()!!.device.wakeMacs)
+        assertNull(store.read()!!.clientKey)
+        assertNull(store.read()!!.certificatePin)
+    }
+
+    @Test fun missingIdentityCannotAttachHouseholdMacsByModelOrHostGuess() {
+        val store = LgPairingStore(MemoryPreferences())
+        store.select(LgDevice("LG", "192.0.2.4", "55UK6700YVD"))
+        store.registered("saved-key", "saved-pin")
+        assertEquals(emptyList<String>(), store.read()!!.device.wakeMacs)
+        store.selectOrUpdate(LgDevice("Other LG", "192.0.2.9", "55UK6700YVD"))
+        assertNull(store.read()!!.clientKey)
+        assertEquals(emptyList<String>(), store.read()!!.device.wakeMacs)
+    }
+
+    @Test fun authenticatedIdentityRequiresCurrentCertificateAndPreservesGrant() {
+        val store = LgPairingStore(MemoryPreferences())
+        store.select(LgDevice("LG", "lg.local"))
+        store.registered("saved-key", "saved-pin")
+        try { store.learnedIdentity(targetUuid, "different-pin"); org.junit.Assert.fail("Wrong TLS peer") }
+        catch (_: IllegalStateException) { }
+        assertNull(store.read()!!.device.uuid)
+        store.learnedIdentity(targetUuid, "saved-pin")
+        assertEquals(targetMacs, store.read()!!.device.wakeMacs)
+        assertEquals("saved-key", store.read()!!.clientKey)
+        try { store.learnedIdentity("different-uuid", "saved-pin"); org.junit.Assert.fail("Changed identity") }
+        catch (_: IllegalStateException) { }
+        assertEquals(targetUuid, store.read()!!.device.uuid)
+    }
+
     internal class MemoryPreferences : SharedPreferences {
         private val values = mutableMapOf<String, Any>()
         override fun getAll(): MutableMap<String, *> = values.toMutableMap()

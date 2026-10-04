@@ -16,6 +16,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -56,13 +57,18 @@ class SamsungSoundbarController internal constructor(
     /** Foreground entry must not undo the user's power request, including after process restart. */
     fun connectStored() { if (!connectionSuspended) retry() }
 
-    fun retry() {
+    fun retry() = connect(retryBeforeConnected = true)
+
+    private fun connect(retryBeforeConnected: Boolean) {
         saveSuspended(false)
         connectionSuspended = false
         disconnect()
         val address = load() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return }
+        _error.value = null
+        _state.value = ConnectionState.CONNECTING
         job = scope.launch {
             var failures = 0
+            var canRetry = retryBeforeConnected
             while (isActive && !connectionSuspended) {
                 _muted.value = null
                 _state.value = ConnectionState.CONNECTING
@@ -77,6 +83,7 @@ class SamsungSoundbarController internal constructor(
                     _error.value = null
                     _state.value = ConnectionState.CONNECTED
                     failures = 0
+                    canRetry = true
                     RemoteDiagnostics.record("samsung", "connection", "connected")
                     active.awaitClosed()
                     throw IOException("Samsung connection closed")
@@ -87,7 +94,7 @@ class SamsungSoundbarController internal constructor(
                     _error.value = com.myremote.app.domain.failureKind(error)
                     _state.value = ConnectionState.DISCONNECTED
                     RemoteDiagnostics.record("samsung", "connection", "failed")
-                    if (_error.value in setOf(FailureKind.PERMISSION_DENIED, FailureKind.UNAVAILABLE, FailureKind.NOT_CONNECTED)) break
+                    if (!canRetry || _error.value in setOf(FailureKind.PERMISSION_DENIED, FailureKind.UNAVAILABLE, FailureKind.NOT_CONNECTED)) break
                 } finally {
                     active?.close()
                     if (session === active) session = null
@@ -119,7 +126,10 @@ class SamsungSoundbarController internal constructor(
 
     override suspend fun togglePower() {
         val active = session?.takeIf { connectionState == ConnectionState.CONNECTED }
-            ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "Samsung soundbar is not connected")
+        if (active == null) {
+            attemptWake()
+            return
+        }
         // Persist before writing: even a failed/cancelled write can have reached the device.
         // Never replay a toggle or reconnect automatically after an uncertain outcome.
         val connectionJob = job
@@ -130,6 +140,37 @@ class SamsungSoundbarController internal constructor(
             RemoteDiagnostics.record("samsung", "power_toggle", "sent")
         } finally {
             if (job === connectionJob) disconnect() else active.close()
+        }
+    }
+
+    /** A reconnect may itself wake Bluetooth Power On. Never follow it with an off toggle. */
+    private suspend fun attemptWake() {
+        if (load() == null) throw DeviceFailure(FailureKind.NOT_CONNECTED, "Set up the soundbar first")
+        connect(retryBeforeConnected = false)
+        val ownedJob = job
+        try {
+            kotlinx.coroutines.withTimeout(15_000) {
+                state.first {
+                    it == ConnectionState.CONNECTED || (it == ConnectionState.DISCONNECTED && _error.value != null)
+                }
+            }
+            if (connectionState != ConnectionState.CONNECTED) {
+                val kind = _error.value
+                throw DeviceFailure(if (kind in setOf(FailureKind.PERMISSION_DENIED, FailureKind.UNAVAILABLE,
+                    FailureKind.SECURITY, FailureKind.NOT_CONNECTED)) kind!! else FailureKind.WAKE_UNCONFIRMED,
+                    "Soundbar wake was not confirmed")
+            }
+            RemoteDiagnostics.record("samsung", "wake", "connected")
+        } catch (error: Exception) {
+            if (job === ownedJob) {
+                saveSuspended(true)
+                connectionSuspended = true
+                disconnect()
+            }
+            if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) throw error
+            RemoteDiagnostics.record("samsung", "wake", "unconfirmed")
+            if (error is DeviceFailure) throw error
+            throw DeviceFailure(FailureKind.WAKE_UNCONFIRMED, "Soundbar wake was not confirmed", error)
         }
     }
 

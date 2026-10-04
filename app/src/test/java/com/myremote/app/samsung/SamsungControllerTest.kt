@@ -60,7 +60,6 @@ class SamsungControllerTest {
         assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
         assertTrue(transports.single().closed)
         assertEquals(1, transports.single().sent.count { it == "ff0b022001" })
-        assertTrue(runCatching { controller.togglePower() }.isFailure)
         controller.connectStored(); advanceTimeBy(120_000); runCurrent()
         assertEquals(1, calls)
         controller.close()
@@ -128,6 +127,104 @@ class SamsungControllerTest {
         assertEquals(1, calls)
         assertEquals(1, writes)
         assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        controller.close()
+    }
+
+    @Test fun explicitPowerWhileDisconnectedAttemptsOneConnectionWithoutToggleReplay() = runTest {
+        var suspended = true
+        val transport = ScriptedSamsungTransport()
+        var calls = 0
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++; transport
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        controller.connectStored(); runCurrent(); assertEquals(0, calls)
+        val wake = async { controller.togglePower() }
+        runCurrent(); wake.await()
+        assertEquals(1, calls)
+        assertFalse(suspended)
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        assertEquals(0, transport.sent.count { it == "ff0b022001" })
+        controller.volumeUp()
+        assertFalse(transport.closed)
+        controller.close()
+    }
+
+    @Test fun failedWakeRestoresSuppressionAndDoesNotKeepRetrying() = runTest {
+        var calls = 0
+        var suspended = true
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++; throw java.io.IOException("Standby service is unavailable")
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val wake = async {
+            try { controller.togglePower(); fail("Wake must not be claimed") }
+            catch (error: DeviceFailure) { assertEquals(FailureKind.WAKE_UNCONFIRMED, error.kind) }
+        }
+        runCurrent(); wake.await()
+        controller.connectStored(); advanceTimeBy(120_000); runCurrent()
+        assertTrue(suspended)
+        assertEquals(1, calls)
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        controller.close()
+    }
+
+    @Test fun silentWakeStatusClosesSocketWithoutSendingPowerToggle() = runTest {
+        var suspended = true
+        val transport = ScriptedSamsungTransport(autoReply = false)
+        var calls = 0
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++; transport
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val wake = async {
+            try { controller.togglePower(); fail("No status") }
+            catch (error: DeviceFailure) { assertEquals(FailureKind.WAKE_UNCONFIRMED, error.kind) }
+        }
+        runCurrent(); advanceTimeBy(4_001); runCurrent(); wake.await()
+        assertTrue(transport.closed)
+        assertTrue(suspended)
+        assertEquals(0, transport.sent.count { it == "ff0b022001" })
+        advanceTimeBy(120_000); runCurrent(); assertEquals(1, calls)
+        controller.close()
+    }
+
+    @Test fun wakeConnectionTimeoutCancelsSocketOwnerAndStopsLateReconnect() = runTest {
+        var suspended = true
+        var cancelled = false
+        var calls = 0
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++
+            try { kotlinx.coroutines.awaitCancellation() } finally { cancelled = true }
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val wake = async {
+            try { controller.togglePower(); fail("No connection") }
+            catch (error: DeviceFailure) { assertEquals(FailureKind.WAKE_UNCONFIRMED, error.kind) }
+        }
+        runCurrent(); advanceTimeBy(15_001); runCurrent(); wake.await()
+        assertTrue(cancelled)
+        assertTrue(suspended)
+        controller.connectStored(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, calls)
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        controller.close()
+    }
+
+    @Test fun deniedWakeKeepsPermissionFailureAndDoesNotTriggerBondOrRetry() = runTest {
+        var suspended = true
+        var calls = 0
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            calls++; throw DeviceFailure(FailureKind.PERMISSION_DENIED, "Bluetooth denied")
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {},
+            { suspended }, { suspended = it })
+        val wake = async {
+            try { controller.togglePower(); fail("Permission") }
+            catch (error: DeviceFailure) { assertEquals(FailureKind.PERMISSION_DENIED, error.kind) }
+        }
+        runCurrent(); wake.await()
+        assertTrue(suspended)
+        controller.connectStored(); advanceTimeBy(120_000); runCurrent(); assertEquals(1, calls)
         controller.close()
     }
 

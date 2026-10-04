@@ -6,7 +6,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
-enum class FailureKind { NOT_CONNECTED, PERMISSION_DENIED, NETWORK, SECURITY, UNAVAILABLE, UNKNOWN }
+enum class FailureKind { NOT_CONNECTED, PERMISSION_DENIED, NETWORK, SECURITY, UNAVAILABLE, WAKE_NOT_CONFIGURED, WAKE_UNCONFIRMED, UNKNOWN }
 
 open class DeviceFailure(val kind: FailureKind, message: String, cause: Throwable? = null) : IOException(message, cause)
 

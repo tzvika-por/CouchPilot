@@ -95,4 +95,6 @@
     <string name="connect_remote">Connect remote</string>
     <string name="remote_background_guidance">You can use other apps or lock your phone. The remote stays connected.</string>
     <string name="remote_paused_guidance">Remote connections are paused. Your devices remain on.</string>
+    <string name="error_wake_not_configured">No wake address is saved for this TV. Connect while the TV is on to finish wake setup.</string>
+    <string name="error_wake_unconfirmed">The device did not reconnect after the wake attempt. Its standby wake setting may need to be enabled.</string>
 </resources>

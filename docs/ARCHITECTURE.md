@@ -68,3 +68,9 @@ Explicit Samsung setup Retry now calls retrySoundbar, rather than device-list re
 ## Standby wake research boundary
 
 Latest physical evidence confirms background retention removes TV blinking and all three Off controls work; all three wake attempts fail. Ordinary control sessions and standby receivers have separate availability. LG already uses out-of-session WOL, Samsung currently permits only a live-session toggle and suppresses reconnect, and Xiaomi's wake reports need a connected HID/LAN channel. [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md) documents supported alternatives and the LG saved-MAC migration gap. This research makes no runtime change and does not turn connectivity into a claimed physical power state.
+
+## Wake configuration and explicit connection intent
+
+LG stores same-device metadata updates independently of grant reset. A secure-session hello UUID enriches manual-host setup after registration; expected UUID and certificate pin remain identity guards. Legacy missing MAC migration affects only the verified installation. Its bounded wake job is canceled on timeout/failure. Wake-configuration versus wake-unconfirmed failures have localizable English/Hebrew messages.
+
+Samsung's existing power intention branches in the controller: connected → one guarded toggle/off and persisted reconnect suppression; disconnected → one bounded connection/status attempt without a toggle, settings change or audio-input switch. Failure restores suppression; successful connection returns to normal lifecycle policy without claiming measured physical wake. Protocol logic remains outside Compose. Google/Xiaomi adapters and the background connection service are unchanged.

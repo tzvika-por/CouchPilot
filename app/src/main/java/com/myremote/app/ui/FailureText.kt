@@ -11,5 +11,7 @@ import com.myremote.app.domain.FailureKind
     FailureKind.NETWORK -> R.string.error_network
     FailureKind.SECURITY -> R.string.error_security
     FailureKind.UNAVAILABLE -> R.string.error_unavailable
+    FailureKind.WAKE_NOT_CONFIGURED -> R.string.error_wake_not_configured
+    FailureKind.WAKE_UNCONFIRMED -> R.string.error_wake_unconfirmed
     else -> R.string.error_generic
 })

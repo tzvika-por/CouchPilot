@@ -2,6 +2,7 @@ package com.myremote.app.lg
 
 import com.myremote.app.domain.ConnectionState
 import com.myremote.app.domain.InputSource
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
@@ -130,16 +131,102 @@ class LgAuthorizationTest {
         fixture.controller.close()
     }
 
-    private fun TestScope.controller(store: LgPairingStore, factory: LgTransportFactory) = LgTvController(
+    private val targetUuid = "00000000-0000-4000-8000-000000000001"
+
+    @Test fun secureHelloCompletesLegacyManualWakeSetupWithoutApproval() = runTest {
+        val fixture = fixture(helloUuid = targetUuid)
+        fixture.preferences.edit().remove("wake_macs").remove("uuid").commit()
+        fixture.controller.connectStored(); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        assertEquals(targetUuid, fixture.store.read()!!.device.uuid)
+        assertEquals(2, fixture.store.read()!!.device.wakeMacs.size)
+        assertEquals("trusted-pin", fixture.store.read()!!.certificatePin)
+        val registration = JSONObject(fixture.transports.single().sent.first { JSONObject(it).getString("type") == "register" })
+        assertEquals("old-key", registration.getJSONObject("payload").getString("client-key"))
+        assertFalse(registration.getJSONObject("payload").getBoolean("forcePairing"))
+        fixture.controller.close()
+    }
+
+    @Test fun conflictingSecureHelloRejectsBeforeSendingStoredClientKey() = runTest {
+        val fixture = fixture(helloUuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        fixture.preferences.edit().putString("uuid", targetUuid).commit()
+        fixture.controller.connectStored(); runCurrent(); advanceTimeBy(120_000); runCurrent()
+        assertEquals(ConnectionState.ERROR, fixture.controller.connectionState)
+        assertEquals(1, fixture.transports.size)
+        assertTrue(fixture.transports.single().closed)
+        assertFalse(fixture.transports.single().sent.any { JSONObject(it).getString("type") == "register" })
+        assertEquals("old-key", fixture.store.read()!!.clientKey)
+        assertEquals("trusted-pin", fixture.store.read()!!.certificatePin)
+        fixture.controller.close()
+    }
+
+    @Test fun reselectingSameHostSavesWakeMetadataAndReusesKey() = runTest {
+        val fixture = fixture()
+        fixture.preferences.edit().remove("wake_macs").remove("uuid").commit()
+        fixture.controller.select(LgDevice("Living room", "192.0.2.8", uuid = "uuid:$targetUuid")); runCurrent()
+        assertEquals(2, fixture.store.read()!!.device.wakeMacs.size)
+        val registration = JSONObject(fixture.transports.single().sent.first { JSONObject(it).getString("type") == "register" })
+        assertEquals("old-key", registration.getJSONObject("payload").getString("client-key"))
+        fixture.controller.close()
+    }
+
+    @Test fun wakeUsesRecoveredManualConfigurationAndRequiresRegisteredConnection() = runTest {
+        val wakes = mutableListOf<LgDevice>()
+        val fixture = fixture(helloUuid = targetUuid, wakeAction = { wakes += it })
+        fixture.preferences.edit().remove("wake_macs").commit()
+        fixture.controller.connectStored(); runCurrent()
+        fixture.controller.powerOff(); runCurrent()
+        val power = async { fixture.controller.powerOn() }
+        runCurrent(); advanceTimeBy(251); runCurrent(); power.await()
+        assertEquals(2, wakes.single().wakeMacs.size)
+        assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
+        assertEquals(2, fixture.transports.size)
+        assertEquals(listOf("trusted-pin", "trusted-pin"), fixture.expectedPins)
+        fixture.controller.close()
+    }
+
+    @Test fun missingWakeAddressDoesNotStartNetworkingOrClaimConnecting() = runTest {
+        var wakes = 0
+        val fixture = fixture(wakeAction = { wakes++ })
+        fixture.preferences.edit().remove("wake_macs").commit()
+        try { fixture.controller.powerOn(); fail("Missing wake configuration") }
+        catch (error: com.myremote.app.domain.DeviceFailure) {
+            assertEquals(com.myremote.app.domain.FailureKind.WAKE_NOT_CONFIGURED, error.kind)
+        }
+        assertEquals(0, wakes)
+        assertTrue(fixture.transports.isEmpty())
+        assertEquals(ConnectionState.DISCONNECTED, fixture.controller.connectionState)
+        assertEquals("old-key", fixture.store.read()!!.clientKey)
+        fixture.controller.close()
+    }
+
+    @Test fun wakeTimeoutCancelsRegistrationAndPreservesCredentialsWithoutLateRetry() = runTest {
+        val fixture = fixture(pauseRegistration = true)
+        val power = async {
+            try { fixture.controller.powerOn(); fail("No registered connection") }
+            catch (error: com.myremote.app.domain.DeviceFailure) {
+                assertEquals(com.myremote.app.domain.FailureKind.WAKE_UNCONFIRMED, error.kind)
+            }
+        }
+        runCurrent(); advanceTimeBy(45_001); runCurrent(); power.await()
+        assertTrue(fixture.transports.single().closed)
+        assertEquals(ConnectionState.DISCONNECTED, fixture.controller.connectionState)
+        assertEquals("old-key", fixture.store.read()!!.clientKey)
+        advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, fixture.transports.size)
+        fixture.controller.close()
+    }
+
+    private fun TestScope.controller(store: LgPairingStore, factory: LgTransportFactory, wakeAction: suspend (LgDevice) -> Unit = {}) = LgTvController(
         store, factory, object : LgDiscovery {
             override val devices = MutableStateFlow<List<LgDevice>>(emptyList())
             override val error = MutableStateFlow<String?>(null)
             override fun start() = Unit
             override fun stop() = Unit
-        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), {},
+        }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), wakeAction,
     )
 
-    private fun TestScope.fixture(deniedUri: String? = null, pauseRegistration: Boolean = false, inputAppId: String? = null): Fixture {
+    private fun TestScope.fixture(deniedUri: String? = null, pauseRegistration: Boolean = false, inputAppId: String? = null, helloUuid: String? = null, wakeAction: suspend (LgDevice) -> Unit = {}): Fixture {
         val prefs = LgPairingStoreTest.MemoryPreferences()
         val store = LgPairingStore(prefs)
         store.select(LgDevice("LG", "192.0.2.8", wakeMacs = listOf("02:00:00:00:00:03")))
@@ -151,11 +238,11 @@ class LgAuthorizationTest {
                 assertEquals("192.0.2.8", host)
                 pins += expectedPin
                 return ScriptedTransport("key-${transports.size + 1}", deniedUri.takeIf { transports.isEmpty() },
-                    pauseRegistration && transports.isEmpty(), inputAppId)
+                    pauseRegistration && transports.isEmpty(), inputAppId, helloUuid)
                     .also { transports += it }
             }
         }
-        return Fixture(controller(store, factory), store, prefs, factory, transports, pins)
+        return Fixture(controller(store, factory, wakeAction), store, prefs, factory, transports, pins)
     }
 
     private data class Fixture(
@@ -165,7 +252,7 @@ class LgAuthorizationTest {
     )
 
     private class ScriptedTransport(
-        private val key: String, private val deniedUri: String?, private val pauseRegistration: Boolean, private val inputAppId: String?,
+        private val key: String, private val deniedUri: String?, private val pauseRegistration: Boolean, private val inputAppId: String?, private val helloUuid: String?,
     ) : LgTransport {
         override val certificatePin = "trusted-pin"
         val sent = mutableListOf<String>()
@@ -179,7 +266,8 @@ class LgAuthorizationTest {
             if (type == deniedUri || message.optString("uri") == deniedUri) {
                 incoming.send("""{"type":"error","id":"$id","error":"401 insufficient permissions"}""")
             } else when (type) {
-                "hello" -> incoming.send("""{"type":"hello"}""")
+                "hello" -> incoming.send(JSONObject().put("type", "hello").put("payload", JSONObject()
+                    .apply { if (helloUuid != null) put("deviceUUID", helloUuid) }).toString())
                 "register" -> if (!pauseRegistration) incoming.send("""{"type":"registered","id":"$id","payload":{"client-key":"$key"}}""")
                 "request" -> {
                     val payload = if (message.optString("uri") == LgProtocol.INPUT_LIST)
