@@ -1,0 +1,18 @@
+package com.myremote.app.hid
+
+import kotlinx.coroutines.flow.Flow
+
+data class HidHost(val name: String, val address: String)
+enum class HidEvent { CONNECTED, DISCONNECTED }
+internal interface HidTransport : AutoCloseable {
+    val bonded: Boolean
+    val failure: com.myremote.app.domain.FailureKind? get() = null
+    val events: Flow<HidEvent>
+    fun send(report: HidReport)
+}
+internal fun interface HidTransportFactory { suspend fun open(host: HidHost): HidTransport }
+
+/** This household observation is configuration, never a generic Xiaomi/model constant. */
+object XiaomiInstallation {
+    val observedHost = HidHost("Xiaomi TV Box", "02:00:00:00:00:02")
+}

@@ -36,3 +36,10 @@ Sound controls use original vector speaker icons and localized content descripti
 
 
 GoogleTvSocketIo transfers native socket ownership to cancellable operations; cancellation closes blocking TCP/TLS/frame IO immediately. GoogleTvCommandSession separates the single framed reader and serialized key/ping writes from Android lifecycle/storage. A reported RemoteStart power flag feeds domain state independently of readiness. Real local mutual-TLS tests exercise this same production session; no fake physical success follows from them.
+
+
+## Optional Bluetooth streamer route
+
+StreamerRoute delegates each intention to exactly one explicitly selected adapter, preserving the existing StreamerController port and domain macro. Google TLS storage/discovery is unchanged. HidProtocol/HidReports/HidSession are Android-independent; HidStreamerController owns state, deadlines/backoff and generation guards; AndroidHidBluetooth owns the public API proxy/SDP/callback executor. HidStore persists selection/mode, never radio keys. Compose only presents setup intents and the same remote actions. No failed command is replayed on a different transport.
+
+The native profile is registered only for the foreground Bluetooth selection and is released on background/switch/disposal. Android's HID Host role restriction is explained in setup. The soundbar retains its separate RFCOMM adapter; actual dual-profile radio interoperability requires hardware evidence. See XIAOMI_BLUETOOTH_PROTOCOL.md. The observed installation Bluetooth address is isolated in XiaomiInstallation and can be replaced by an explicitly selected OS bond.

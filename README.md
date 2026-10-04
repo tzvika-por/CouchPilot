@@ -1,12 +1,12 @@
 # My Remote
 
-Native Android remote for LG 55UK6700YVD, Xiaomi Google TV Box S (3rd Gen), and Samsung HW-M360. One dark Hebrew/RTL-capable screen handles sources, sound, navigation, media, digits, channels and the yes+ Last Channel macro. Production adapters use LG SSAP/WSS, Google TV Remote Service v2/TLS and Samsung Bluetooth Classic RFCOMM. No ADB, Developer Options, vendor CLI or online computer is required by the shipped app.
+Native Android remote for LG 55UK6700YVD, Xiaomi Google TV Box S (3rd Gen), and Samsung HW-M360. One dark Hebrew/RTL-capable screen handles sources, sound, navigation, media, digits, channels and the yes+ Last Channel macro. Production adapters use LG SSAP/WSS, Google TV Remote Service v2/TLS and Samsung Bluetooth Classic RFCOMM. An optional native Android Bluetooth HID Xiaomi adapter can avoid the blocked Wi-Fi path. No ADB, Developer Options, vendor CLI or online computer is required by the shipped app.
 
 ## Current evidence
 
 - **PROVEN physically:** MyRemote LG discovery, registration, Connected, Power Off and HDMI 3/Xiaomi → HDMI 2/Mac mini switching; MyRemote Samsung setup, volume up/down and mute/unmute; Samsung Audio Remote volume/mute on optical D.IN; ADB yes+ key/macro semantics.
 - **FAILED physically / unresolved:** prior LG wake and phone-to-Xiaomi TCP reachability. Earlier LG input denial is historical; input switching now succeeds after the customer refreshed and approved authorization with build 8a1c428.
-- **IMPLEMENTED BUT UNPROVEN physically:** revised LG WOL targeting and MyRemote Xiaomi pairing/keys/wake. Source switching succeeded; the exact direct-versus-launcher path was not captured.
+- **IMPLEMENTED BUT UNPROVEN physically:** revised LG WOL targeting, MyRemote Xiaomi LAN pairing/keys/wake and optional Bluetooth control. Source switching succeeded; the exact direct-versus-launcher path was not captured.
 - **OPEN QUESTION:** LG's precise authorization difference from the working CLI, the selective Wi-Fi restriction toward the powered-on Xiaomi. The current implementation is a validation build, not a completed useful release.
 
 ## Build and automated verification
@@ -26,6 +26,8 @@ LG: discover/select or enter hostname/IP; ordinary TV approval stores the key an
 
 Xiaomi: discover Google TV or enter hostname/IP, then enter the TV code. All available IPv4/IPv6 addresses, command port and reachable address persist. Network reachability is a prerequisite; no hard-coded Xiaomi host is used. Powered-on Mac Ethernet now reaches both Remote Service ports over IPv4/IPv6; Wi-Fi still fails. Native socket cancellation and real mutual-TLS command/pairing sessions are automatically verified, not physically proven.
 
+Xiaomi Bluetooth fallback: choose Bluetooth in Xiaomi setup, allow the requested access, make the phone visible and approve normal accessory pairing from Xiaomi's Remotes & accessories menu. Keep MyRemote foreground. Android owns the bond; later openings reuse it. A connected phone keyboard/mouse may be disconnected while the HID remote is active. This route, including long OK and wake, is not physically proven; see [XIAOMI_BLUETOOTH_PROTOCOL.md](docs/XIAOMI_BLUETOOTH_PROTOCOL.md).
+
 Samsung: Set up soundbar → allow Bluetooth on Android 12+ → select the existing paired Samsung. Android stores the bond; MyRemote stores the selection and connects directly to the control service. Keep D.IN and close Samsung Audio Remote to avoid competing control sessions. No new Bluetooth scan/location permission, A2DP playback or generic AVRCP workaround is used. Forget removes MyRemote selection without removing the Android bond.
 
 Connections are active while the app is foreground and close in background. Source buttons use stable HDMI IDs. Watch yes+ selects HDMI 3; launching yes+ or waking it automatically is withheld until reliable. Global Xiaomi keys remain available on all sources. Volume/mute always targets Samsung. Sound buttons use speaker icons with localized accessibility labels. After a valid mute status reply, the middle icon offers the opposite action (unmute when muted); unknown status uses a neutral mute toggle. There is no Power Off All.
@@ -35,6 +37,7 @@ Connections are active while the app is foreground and close in background. Sour
 - domain/: intentions, typed failures, state, controller ports and macro routing.
 - lg/: SSDP, pairing storage, WSS/SSAP correlation, input strategy and wake.
 - google/: NSD, Keystore identity, persistent endpoints, TLS and Polo/protobuf.
+- hid/: independent keyboard/consumer reports, native Bluetooth profile, selection and lifecycle; domain route chooses one streamer adapter.
 - samsung/: Bluetooth bond setup, RFCOMM transport, protocol and lifecycle.
 - network/: per-socket LAN selection and broadcast calculation.
 - diagnostics/: allowlisted structured events; no keys, codes, addresses or raw packets.

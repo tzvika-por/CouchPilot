@@ -18,10 +18,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.stateIn
 
 class RemoteViewModel(application: Application) : AndroidViewModel(application) {
     private val tv = LgTvController(application)
     private val streamer = GoogleTvStreamerController(application)
+    private val hidStore = com.myremote.app.hid.HidStore(application)
+    val hidBluetooth = com.myremote.app.hid.AndroidHidBluetooth(application)
+    private val hid = com.myremote.app.hid.HidStreamerController(hidBluetooth.factory,
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
+        hidStore::host, hidStore::host)
+    private val selectedConnection = MutableStateFlow(hidStore.mode())
+    val streamerConnection = selectedConnection.asStateFlow()
+    val hidRegistered = hid.registered
+    val hidError = hid.error
+    private val mutableHidHosts = MutableStateFlow<List<com.myremote.app.hid.HidHost>>(emptyList())
+    val hidHosts = mutableHidHosts.asStateFlow()
+    private val mutablePhoneName = MutableStateFlow<String?>(null)
+    val phoneBluetoothName = mutablePhoneName.asStateFlow()
+    private val route = com.myremote.app.hid.StreamerRoute(streamer, hid) { selectedConnection.value }
     private val soundbar = SamsungSoundbarController(application)
     val bluetooth = SamsungBluetooth(application)
     private val _bluetoothPermission = MutableStateFlow(bluetooth.hasPermission())
@@ -33,10 +48,12 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     val soundbarDevices = _soundbarDevices.asStateFlow()
     private val _soundbarSetupVisible = MutableStateFlow(false)
     val soundbarSetupVisible = _soundbarSetupVisible.asStateFlow()
-    private val coordinator = RemoteCoordinator(tv, streamer, soundbar)
+    private val coordinator = RemoteCoordinator(tv, route, soundbar)
     private val _remoteState = MutableStateFlow(coordinator.state)
     val remoteState = _remoteState.asStateFlow()
-    val streamerState = streamer.state
+    val streamerState = kotlinx.coroutines.flow.combine(selectedConnection, streamer.state, hid.state) { mode, lan, bluetooth ->
+        if (mode == com.myremote.app.hid.StreamerConnection.LAN) lan else bluetooth
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, route.connectionState)
     val streamerError = streamer.error
     val discoveredDevices = streamer.discovery.devices
     val discoveryError = streamer.discovery.error
@@ -53,11 +70,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     init {
         viewModelScope.launch {
             streamer.powerState.collect { on ->
-                if (on != null) _remoteState.value = coordinator.updateStreamerPower(on)
+                if (on != null && selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) _remoteState.value = coordinator.updateStreamerPower(on)
             }
         }
         viewModelScope.launch {
-            streamer.state.collect { _remoteState.value = coordinator.updateStreamerConnection(it) }
+            streamerState.collect { _remoteState.value = coordinator.updateStreamerConnection(it) }
         }
         viewModelScope.launch {
             tv.state.collect { _remoteState.value = coordinator.updateTvConnection(it) }
@@ -73,7 +90,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     fun startConnections() {
         if (bluetooth.hasPermission()) soundbar.retry()
-        streamer.connectStored()
+        if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) streamer.connectStored() else hid.retry()
         tv.connectStored()
         if (_soundbarSetupVisible.value) refreshSoundbarDevices()
     }
@@ -81,6 +98,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         pairingJob?.cancel()
         actionJobs.toList().forEach { it.cancel() }
         streamer.pause()
+        hid.pause()
         tv.pause()
         soundbar.disconnect()
     }
@@ -96,7 +114,8 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSetup() {
         _setupVisible.value = true
-        runCatching { streamer.startDiscovery() }
+        if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) runCatching { streamer.startDiscovery() }
+        else refreshHidHosts()
     }
 
     fun closeSetup() {
@@ -108,6 +127,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun beginPairing(device: GoogleTvDevice) {
+        useLanConnection(connect = false)
         pairingJob?.cancel()
         pairingJob = viewModelScope.launch { runCatching { streamer.beginPairing(device) } }
     }
@@ -121,8 +141,34 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         pairingJob = viewModelScope.launch { runCatching { streamer.finishPairing(code) } }
     }
 
-    fun retry() = streamer.retry()
-    fun forgetPairing() { pairingJob?.cancel(); streamer.forgetPairing() }
+    fun retry() {
+        if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) streamer.retry() else hid.retry()
+    }
+    fun forgetPairing() {
+        if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) {
+            pairingJob?.cancel(); streamer.forgetPairing()
+        } else hid.forget()
+    }
+    fun useLanConnection(connect: Boolean = true) {
+        hid.pause()
+        hidStore.mode(com.myremote.app.hid.StreamerConnection.LAN)
+        selectedConnection.value = com.myremote.app.hid.StreamerConnection.LAN
+        if (connect) { streamer.connectStored(); if (_setupVisible.value) streamer.startDiscovery() }
+    }
+    fun useBluetoothConnection() {
+        pairingJob?.cancel(); streamer.pause()
+        hidStore.mode(com.myremote.app.hid.StreamerConnection.BLUETOOTH)
+        selectedConnection.value = com.myremote.app.hid.StreamerConnection.BLUETOOTH
+        refreshHidHosts()
+        if (hidStore.host() == null) hid.select(com.myremote.app.hid.XiaomiInstallation.observedHost) else hid.retry()
+    }
+    fun selectHidHost(host: com.myremote.app.hid.HidHost) { hid.select(host) }
+    fun refreshHidHosts() {
+        _bluetoothPermission.value = bluetooth.hasPermission()
+        mutableHidHosts.value = runCatching { hidBluetooth.pairedHosts() }.getOrDefault(emptyList())
+        mutablePhoneName.value = runCatching { hidBluetooth.phoneName() }.getOrNull()
+        if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.BLUETOOTH) hid.retry()
+    }
 
     fun openLgSetup() {
         _lgSetupVisible.value = true
@@ -163,5 +209,6 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         soundbar.close()
         tv.close()
         streamer.close()
+        hid.close()
     }
 }

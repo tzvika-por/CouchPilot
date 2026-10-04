@@ -15,6 +15,7 @@ import com.myremote.app.ui.SamsungSetupDialog
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.myremote.app.ui.GoogleTvSetupDialog
@@ -38,6 +39,30 @@ class MainActivity : ComponentActivity() {
             }
             val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
                 remote.refreshSoundbarDevices()
+            }
+            var pendingHidVisibility by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            val hidVisible = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+                remote.refreshHidHosts()
+            }
+            val hidPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                remote.refreshHidHosts()
+                if (pendingHidVisibility && remote.hidBluetooth.canAdvertise()) {
+                    pendingHidVisibility = false
+                    hidVisible.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                        .putExtra(android.bluetooth.BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120))
+                } else pendingHidVisibility = false
+            }
+            val streamerConnection by remote.streamerConnection.collectAsStateWithLifecycle()
+            val hidRegistered by remote.hidRegistered.collectAsStateWithLifecycle()
+            val hidHosts by remote.hidHosts.collectAsStateWithLifecycle()
+            val hidError by remote.hidError.collectAsStateWithLifecycle()
+            val phoneName by remote.phoneBluetoothName.collectAsStateWithLifecycle()
+            androidx.compose.runtime.LaunchedEffect(hidRegistered, pendingHidVisibility) {
+                if (pendingHidVisibility && hidRegistered && remote.hidBluetooth.canAdvertise()) {
+                    pendingHidVisibility = false
+                    hidVisible.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                        .putExtra(android.bluetooth.BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120))
+                }
             }
             val hasBluetoothPermission by remote.bluetoothPermission.collectAsStateWithLifecycle()
             val soundbarSetup by remote.soundbarSetupVisible.collectAsStateWithLifecycle()
@@ -73,13 +98,35 @@ class MainActivity : ComponentActivity() {
                 if (setupVisible) GoogleTvSetupDialog(
                     devices = devices,
                     connection = connection,
-                    error = error ?: discoveryError,
+                    error = if (streamerConnection == com.myremote.app.hid.StreamerConnection.LAN) error ?: discoveryError else null,
                     onDismiss = remote::closeSetup,
                     onDevice = remote::beginPairing,
                     onManualHost = remote::beginManualPairing,
                     onCode = remote::submitCode,
                     onRetry = remote::retry,
                     onForget = remote::forgetPairing,
+                    bluetoothMode = streamerConnection == com.myremote.app.hid.StreamerConnection.BLUETOOTH,
+                    onLan = { remote.useLanConnection() }, onBluetooth = remote::useBluetoothConnection,
+                    bluetoothContent = {
+                        com.myremote.app.ui.HidSetupContent(
+                            hosts = hidHosts, hasPermission = hasBluetoothPermission,
+                            supported = remote.hidBluetooth.supported, registered = hidRegistered,
+                            phoneName = phoneName, error = hidError,
+                            onPermission = {
+                                if (Build.VERSION.SDK_INT >= 31) hidPermission.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE))
+                                else remote.refreshHidHosts()
+                            },
+                            onVisible = {
+                                if (!remote.hidBluetooth.canAdvertise()) {
+                                    pendingHidVisibility = true
+                                    hidPermission.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE))
+                                } else {
+                                    pendingHidVisibility = true
+                                }
+                            }, onHost = remote::selectHidHost,
+                            onSettings = { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },
+                        )
+                    },
                 )
                 if (lgSetupVisible) LgSetupDialog(
                     devices = lgDevices,

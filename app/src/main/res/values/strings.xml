@@ -75,4 +75,13 @@
     <string name="error_generic">The action could not be completed. Open device setup to reconnect.</string>
     <string name="unmute">Unmute</string>
     <string name="mute_toggle">Mute or unmute</string>
+    <string name="streamer_wifi">Wi-Fi</string>
+    <string name="streamer_bluetooth">Bluetooth</string>
+    <string name="bluetooth_remote_guidance">Bluetooth controls Xiaomi directly when Wi-Fi cannot connect. Pair once; later openings reuse the connection.</string>
+    <string name="bluetooth_host_note">While this remote is open, Android may disconnect a Bluetooth keyboard or mouse connected to your phone.</string>
+    <string name="bluetooth_remote_unsupported">This phone does not support Bluetooth remote control. Use Wi-Fi.</string>
+    <string name="bluetooth_tv_pair_steps">For first setup: make this phone visible below. On Xiaomi, open Settings → Remotes &amp; accessories → Pair accessory, select %1$s and approve pairing. Keep My Remote open.</string>
+    <string name="bluetooth_make_visible">Make phone visible for 2 minutes</string>
+    <string name="this_phone">this phone</string>
+    <string name="bluetooth_remote_unavailable">Bluetooth remote is unavailable. Check Bluetooth is on, or use Wi-Fi.</string>
 </resources>

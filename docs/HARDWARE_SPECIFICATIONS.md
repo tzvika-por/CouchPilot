@@ -48,3 +48,8 @@ Installation-only wake addresses: wired `02:00:00:00:00:03`, wireless `02:00:00:
 | HDMI_4 | PC | Input selection only; no OS/network wake commands. |
 
 Simplink can couple power across connected devices depending on settings; [LG's Simplink guidance](https://www.lgappstv.com/manual/l16/common/option/simplink_all/eng/l16__option__simplink_all__eng.html) describes Auto Power Sync. MyRemote does not send CEC commands or implement Power Off All. Optical audio carries no HDMI-CEC control; Samsung volume must use its Bluetooth control service. Launching yes+ automatically is withheld until a supported reliable app-launch path is established. No installed app ID is guessed.
+
+
+### Optional phone-to-Xiaomi Bluetooth route — 2026-10-04
+
+Android offers a public Bluetooth HID Device profile on API 28+. Its keyboard/Consumer Control reports provide a legitimate LAN-independent input route in principle. The powered-on Xiaomi's current Remote Service TXT advertises bt=02:00:00:00:00:02; this is an installation observation, not a model constant. The adapter is implemented behind StreamerController, with preserved LAN support. Xiaomi accessory acceptance, phone OEM profile support, yes+ long-OK and Bluetooth wake remain IMPLEMENTED BUT UNPROVEN. Exact vendor key layout is an OPEN QUESTION. Primary API/USB/AOSP references and foreground role limitations are in XIAOMI_BLUETOOTH_PROTOCOL.md. No extra physical diagnostic is requested during engineering.

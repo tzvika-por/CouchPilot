@@ -45,6 +45,10 @@ fun GoogleTvSetupDialog(
     onCode: (String) -> Unit,
     onRetry: () -> Unit,
     onForget: () -> Unit,
+    bluetoothMode: Boolean = false,
+    onLan: () -> Unit = {},
+    onBluetooth: () -> Unit = {},
+    bluetoothContent: @Composable () -> Unit = {},
 ) {
     var host by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
@@ -55,6 +59,15 @@ fun GoogleTvSetupDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(stringResource(R.string.xiaomi_setup), style = MaterialTheme.typography.titleLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onLan, enabled = bluetoothMode, modifier = Modifier.weight(1f).testTag("streamer_lan")) {
+                        Text(stringResource(R.string.streamer_wifi))
+                    }
+                    OutlinedButton(onClick = onBluetooth, enabled = !bluetoothMode, modifier = Modifier.weight(1f).testTag("streamer_bluetooth")) {
+                        Text(stringResource(R.string.streamer_bluetooth))
+                    }
+                }
+                if (bluetoothMode) bluetoothContent() else {
                 Text(stringResource(R.string.pairing_guidance), style = MaterialTheme.typography.bodyMedium)
                 if (connection == ConnectionState.WAITING_FOR_CODE) {
                     OutlinedTextField(
@@ -92,6 +105,7 @@ fun GoogleTvSetupDialog(
                         enabled = normalizedGoogleTvHost(host) != null,
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.connect_host)) }
+                }
                 }
                 if (connection == ConnectionState.PAIRING || connection == ConnectionState.CONNECTING) {
                     Text(stringResource(R.string.please_wait))
