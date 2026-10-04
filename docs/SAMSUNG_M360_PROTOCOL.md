@@ -64,3 +64,7 @@ Optical Auto Power Link remains the installation-compatible candidate when LG wa
 ## Candidate physical failure supersedes awaiting-validation status
 
 The customer's latest a8b9fcb result is **FAILED** for standalone soundbar wake, including the bounded disconnected SPP attempt. This is not physical proof of Bluetooth audio wake through this control profile. The official optical Auto Power Link route remains untested independently: LG itself did not wake, so returning TV optical audio was not established. Existing Off/volume/mute success remains valid. No toggle replay, hidden A2DP connect, input switch or undocumented setting packet is added. See [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md).
+
+## LG wake resolved; soundbar evidence remains separate
+
+The customer confirms LG wake succeeds after enabling the TV's Turn on via Wi-Fi option. The requested test targeted LG only, so this is not evidence that the HW-M360 also woke. Standalone SPP wake remains unsuccessful from the prior test. Optical Auto Power Link now has a working TV-wake prerequisite; its current setting and actual response remain unconfirmed. No Samsung protocol, audio input or device setting changed in this update.

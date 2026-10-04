@@ -58,3 +58,9 @@ Missing/invalid wake configuration now has its own localized error. Packets stil
 ## Candidate physical failure supersedes awaiting-validation status
 
 The customer reports a8b9fcb still does not wake the LG. MAC/identity migration is implemented and tested, but cannot be assigned as this failure's root cause or cure. Current source-bound Mac TCP reachability and ARP/MAC agreement do not prove standby broadcast reception. Mobile TV On's current setting and the phone's exact wake outcome remain unknown. No further protocol change is justified by these observations. See [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md) for the single prerequisite-setting check and public API boundary.
+
+## LG wake physically succeeds after prerequisite enabled
+
+**PROVEN — customer report:** both LG Mobile TV On options were off. The customer enabled **Turn on via Wi-Fi** only, leaving Bluetooth off, and confirmed success in the requested single LG wake check using the already installed a8b9fcb APK. This supersedes the earlier LG wake failure/unknown-setting status. Disabled network wake was a demonstrated blocker for the latest attempt: enabling it was the only instructed change before success. No new APK, re-pair, key refresh or router change was required. The earlier configuration migration remains independently justified by code/tests; this result does not establish that the phone previously had missing MACs.
+
+This confirms the observed LG On outcome, not repeated/extended-standby reliability, a panel-state API, Samsung optical/Bluetooth wake or Xiaomi wake. The customer answered the LG-specific check; no soundbar success is inferred. No repeat LG/source/volume/blinking session is requested. Documentation-only update: application and shared APK unchanged, prior automated gates retained, documentation diff/link checks run. No push, tag or release.

@@ -4,12 +4,12 @@ Native Android remote for LG 55UK6700YVD, Xiaomi Google TV Box S (3rd Gen), and 
 
 ## Current evidence
 
-Latest customer confirmation after eba8ec5: TV blinking on app switching is gone, all three Off controls work, and all three power-on attempts fail. [Power-on research](docs/POWER_ON_RESEARCH.md) documents LG mobile/network wake, Samsung optical/Bluetooth wake, Xiaomi limits and a concrete LG saved-MAC configuration gap. This supersedes earlier unproven off/flicker notes. The subsequent wake engineering candidate described below fixes the identified LG configuration gap and adds a bounded soundbar wake attempt; the customer has now tested that candidate and both LG and Samsung wake still fail.
+Latest customer confirmation: **LG power-on now works physically** with the existing a8b9fcb APK after enabling General → Mobile TV On → Turn on via Wi-Fi. Both wake settings were previously off; Bluetooth wake remains off. Background blinking is resolved and all three Off controls work. Samsung and Xiaomi wake remain unresolved. [Power-on research](docs/POWER_ON_RESEARCH.md) records the prerequisite and evidence boundaries.
 
 - **PROVEN physically:** MyRemote LG discovery, registration, Connected, Power Off and HDMI 3/Xiaomi → HDMI 2/Mac mini switching; MyRemote Samsung setup, volume up/down and mute/unmute; Samsung Audio Remote volume/mute on optical D.IN; ADB yes+ key/macro semantics. The Galaxy/Xiaomi Bluetooth bond was established, Xiaomi retained the phone accessory, and MyRemote eventually reported Connected after manual recovery.
-- **FAILED physically / unresolved:** prior LG wake and phone-to-Xiaomi TCP reachability. Earlier LG input denial is historical; input switching now succeeds after the customer refreshed and approved authorization with build 8a1c428.
+- **FAILED historically:** LG wake before enabling Mobile TV On. Phone-to-Xiaomi TCP reachability remains unresolved. Earlier LG input denial is historical; input switching now succeeds after the customer refreshed and approved authorization with build 8a1c428.
 - **FAILED historical / stability issue:** the Galaxy was absent from the earlier TV accessory search. Phone-initiated pairing later established the bond, but initially connected briefly and entered a reconnect loop. Automatic recovery improvements are implemented and require no new bond; their physical stability is not yet proven.
-- **FAILED latest physical check:** revised LG WOL targeting did not turn the TV back on after successful power-off.
+- **PROVEN latest physical check:** LG wakes through MyRemote after enabling Turn on via Wi-Fi. Earlier failures are historical; no further APK or pairing was needed.
 - **IMPLEMENTED / remaining limits:** Xiaomi Google LAN interoperability remains unproven. Bluetooth correctness was reported in aggregate and Off now works; exact key timing/recovery measurements are absent and wake fails. LG source switching succeeded; the exact direct-versus-launcher path was not captured.
 - **OPEN QUESTION:** LG's precise authorization difference from the working CLI, the selective Wi-Fi restriction toward the powered-on Xiaomi. The current implementation is a validation build, not a completed useful release.
 
@@ -78,4 +78,4 @@ Latest wake candidate: **115 JVM tests and 17 API 35 emulator tests passed**; bo
 
 ### Latest wake result
 
-The customer reports that `a8b9fcb` still does not wake the LG TV or Samsung soundbar. Existing control and background-retention successes remain accepted. No further code fix is proven; standby settings and wake delivery remain unresolved. See [power-on research](docs/POWER_ON_RESEARCH.md) and [device validation](docs/DEVICE_VALIDATION.md).
+The customer confirms LG wake succeeds on `a8b9fcb` after enabling Turn on via Wi-Fi. This resolves the latest LG wake blocker; Samsung wake remains unsuccessful and optical wake has not yet been independently confirmed. Existing control and background-retention successes remain accepted. See [power-on research](docs/POWER_ON_RESEARCH.md) and [device validation](docs/DEVICE_VALIDATION.md).

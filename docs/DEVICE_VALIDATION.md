@@ -1,6 +1,6 @@
 # Device validation
 
-These observations came from customer physical tests and the recorded Mac investigation. Latest confirmation: a8b9fcb still fails to wake LG and Samsung; after eba8ec5, background TV blinking is resolved; LG, Xiaomi and Samsung power-off works; power-on fails for all three. LG inputs and Samsung volume/mute remain physically proven; earlier Xiaomi correctness was an aggregate success report. Google LAN interoperability, detailed standby behavior and the exact causes of failed wake remain unresolved. The latest record below supersedes historical unproven off/flicker statements.
+These observations came from customer physical tests and the recorded Mac investigation. Latest confirmation: LG wake on a8b9fcb succeeds after enabling Turn on via Wi-Fi, with Bluetooth wake left off. Background blinking is resolved; all three Off controls work. Samsung and Xiaomi wake remain unresolved. LG inputs and Samsung volume/mute remain physically proven; earlier Xiaomi correctness was an aggregate success report. Google LAN interoperability, detailed standby behavior and the exact causes of failed wake remain unresolved. The latest record below supersedes historical unproven off/flicker statements.
 
 ## Proven
 
@@ -20,7 +20,7 @@ These observations came from customer physical tests and the recorded Mac invest
 
 - This app's Android TV Remote Service v2 discovery, pairing, connection, and key control on the physical Xiaomi. Code and automated protocol tests alone do not prove device interoperability.
 - Xiaomi power and wake behavior through that protocol.
-- LG wake: revised WOL targeting failed physically; successful standby wake remains unproven.
+- LG wake reliability across extended standby, repeated cycles and network changes. One physical wake now succeeds after enabling Turn on via Wi-Fi; no repeat reliability session is requested.
 - Automatic LG reconnection without another approval across repeated physical launches. Credential persistence/reuse is proven automatically; the customer has not yet reported repeated launches. No repeat pairing test is requested.
 - Independent Samsung wake from a disconnected session. The live-session toggle now physically turns it off.
 - Automatic foregrounding or launching of yes+.
@@ -292,3 +292,9 @@ Delivery: `/Volumes/Expansion/Videos/MyRemote.apk` was atomically replaced and v
 **PROVEN — new read-only Mac observation:** LG `192.0.2.4` accepts TCP 3000 and 3001 from both `192.0.2.3` (en0) and `192.0.2.19` (en1). ARP entries match the configured wired MAC `02:00:00:00:00:03`. This does not prove panel power state, standby wake, Android broadcast delivery or current wake settings. No pairing prompt, wake packet, control command or persistent network/device change was made.
 
 Code review found no additional proven fix. [POWER_ON_RESEARCH.md](POWER_ON_RESEARCH.md) records the public-API limits and remaining hypotheses. The only requested owner information is whether LG's General → Mobile TV On → Turn on via Wi-Fi is enabled; no new package, re-pair or repeat power cycle. Samsung optical wake has not been independently disproven because TV wake failed. Documentation-only checks pass; the prior 115-JVM/17-instrumentation/build/lint/Compose results remain unchanged and were not rerun. No push, tag or release.
+
+## LG wake physically succeeds after prerequisite enabled
+
+**PROVEN — customer report:** both LG Mobile TV On options were off. The customer enabled **Turn on via Wi-Fi** only, leaving Bluetooth off, and confirmed success in the requested single LG wake check using the already installed a8b9fcb APK. This supersedes the earlier LG wake failure/unknown-setting status. Disabled network wake was a demonstrated blocker for the latest attempt: enabling it was the only instructed change before success. No new APK, re-pair, key refresh or router change was required. The earlier configuration migration remains independently justified by code/tests; this result does not establish that the phone previously had missing MACs.
+
+This confirms the observed LG On outcome, not repeated/extended-standby reliability, a panel-state API, Samsung optical/Bluetooth wake or Xiaomi wake. The customer answered the LG-specific check; no soundbar success is inferred. No repeat LG/source/volume/blinking session is requested. Documentation-only update: application and shared APK unchanged, prior automated gates retained, documentation diff/link checks run. No push, tag or release.

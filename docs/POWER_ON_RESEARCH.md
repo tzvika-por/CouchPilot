@@ -1,8 +1,8 @@
 # Power-on feasibility research
 
-Updated 2026-10-04 after the customer tested `a8b9fcb6de580b54e6d57da1e38c6e5a8ba8fcf1`: LG and Samsung wake both still **FAIL**. The original investigation below inspected `eba8ec5`; its identified implementation gaps were repaired in `a8b9fcb`. The latest follow-up changes documentation only; no new APK or device setting change.
+Latest update 2026-10-04: **LG wake succeeds physically** on `a8b9fcb6de580b54e6d57da1e38c6e5a8ba8fcf1` after enabling Turn on via Wi-Fi. Both LG wake settings were previously off; Bluetooth wake remains off. Samsung wake remains unsuccessful. The original investigation below inspected `eba8ec5`; its identified implementation gaps were repaired in `a8b9fcb`. The latest follow-up changes documentation only; no new APK or device setting change.
 
-## Latest physical evidence
+## Earlier physical evidence — before enabling LG network wake
 
 The customer confirms that ordinary phone app switching no longer makes the TV blink. MyRemote turns off the LG TV, Xiaomi box and Samsung soundbar. Turning each back on through the current controls fails. These observations supersede earlier unproven off/flicker states; they do not establish which radio, standby setting or wake packet caused each failure. The Samsung command remains a toggle, with successful off observed from the on state.
 
@@ -12,13 +12,13 @@ Losing a control connection prevents delivery on that connection. Standby hardwa
 
 | Device | Available wake route | Engineering conclusion |
 |---|---|---|
-| LG 55UK6700YVD | Mobile TV On / Wake-on-LAN; model also lists Bluetooth wake | Keep pursuing network wake. Exact-model support exists; MyRemote's failed result does not prove it impossible. The configuration repair has shipped, but wake still fails. Standby enablement, phone configuration and packet delivery remain unresolved. |
+| LG 55UK6700YVD | Mobile TV On / Wake-on-LAN; model also lists Bluetooth wake | Physically successful on the installed APK after enabling Turn on via Wi-Fi. Disabled network wake was the demonstrated prerequisite blocking the latest attempt. No additional code or pairing change was needed; long-term reliability is not established by one cycle. |
 | Samsung HW-M360 | Optical Auto Power Link; paired-device Bluetooth Power On | Optical wake fits the existing D.IN installation. Direct SPP-only wake remains unverified; Bluetooth audio wake may change the input. |
 | Xiaomi TV Box S (3rd Gen) | Original remote; possibly compatible HDMI-CEC or a standby network receiver | No documented reliable disconnected wake route found for a normal Android phone using this production HID adapter. Firmware/standby compatibility is unresolved, not proven impossible. |
 
 ## LG: supported hardware, unresolved implementation/configuration outcome
 
-[LG's exact Israeli model specifications](https://www.lg.com/il/tv/lg-55UK6700YVD) list Mobile TV On, Wi-Fi TV On and Bluetooth wake. The actual television previously advertised webOS 4.1; its installed firmware build and standby settings remain unknown.
+[LG's exact Israeli model specifications](https://www.lg.com/il/tv/lg-55UK6700YVD) list Mobile TV On, Wi-Fi TV On and Bluetooth wake. The actual television previously advertised webOS 4.1; its firmware build remains unknown. The customer found both Mobile TV On options off and enabled Turn on via Wi-Fi only; MyRemote subsequently woke it successfully.
 
 The [official 2018 webOS 4.0 Mobile TV On guide](https://eguide.lgappstv.com/manual/w18/atsc/Contents/settings/general/mobiletvon_k_u_b/enga/w40__settings__general__mobiletvon_k_u_b__enga.html) places the feature under General → Mobile TV On. Network wake requires the corresponding option enabled, mains power and the same network. This generation's guide limits Bluetooth wake to certain LG smartphones. The newer [ThinQ support article](https://www.lg.com/us/support/help-library/lg-tv-how-to-set-up-the-lg-thinq-app-on-your-lg-smart-tv--20152745625356) describes wider Android Wi-Fi/Bluetooth wake support, but its webOS 6.0 menu and general compatibility statement do not prove a Galaxy Bluetooth implementation for this older model. No undocumented BLE packet is invented.
 
@@ -85,3 +85,9 @@ The existing Samsung Power intention now attempts one bounded native connection 
 **Samsung distinction:** the failed explicit SPP reconnect does not establish that the documented Bluetooth audio wake is supported through SPP. [Android's public A2DP API](https://developer.android.com/reference/android/bluetooth/BluetoothA2dp) exposes profile status, not a public app-controlled connect method; a hidden-API workaround or automatic audio-input switch is not added. Optical Auto Power Link depends on returning TV optical audio and its own setting. Since LG wake failed, this result does not independently test optical wake. The practical route for this D.IN installation remains establishing LG wake first; standalone MyRemote soundbar wake is still physically unsuccessful.
 
 **Validation/delivery:** documentation-only follow-up; diff and relative-link checks run. Application gates are unchanged from a8b9fcb: 115 JVM tests, 17 actual API 35 instrumentation tests, both builds/lint variants and Compose compilation passed. They are historical validation, not fresh runs or proof of hardware wake. The existing shared APK is unchanged. No push, tag or release.
+
+## LG wake physically succeeds after prerequisite enabled
+
+**PROVEN — customer report:** both LG Mobile TV On options were off. The customer enabled **Turn on via Wi-Fi** only, leaving Bluetooth off, and confirmed success in the requested single LG wake check using the already installed a8b9fcb APK. This supersedes the earlier LG wake failure/unknown-setting status. Disabled network wake was a demonstrated blocker for the latest attempt: enabling it was the only instructed change before success. No new APK, re-pair, key refresh or router change was required. The earlier configuration migration remains independently justified by code/tests; this result does not establish that the phone previously had missing MACs.
+
+This confirms the observed LG On outcome, not repeated/extended-standby reliability, a panel-state API, Samsung optical/Bluetooth wake or Xiaomi wake. The customer answered the LG-specific check; no soundbar success is inferred. No repeat LG/source/volume/blinking session is requested. Documentation-only update: application and shared APK unchanged, prior automated gates retained, documentation diff/link checks run. No push, tag or release.
