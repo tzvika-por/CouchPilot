@@ -68,3 +68,7 @@ This confirms the observed LG On outcome, not repeated/extended-standby reliabil
 ## Optical soundbar wake now confirmed
 
 With LG network wake enabled and the HW-M360 Auto Power Link sequence completed, the customer confirms the soundbar wakes with the TV. LG sends no Samsung control packet for this behavior; it is the existing optical path. This establishes one installation outcome, not a general CEC cascade or independent Bluetooth wake. No LG protocol or pairing change is made.
+
+## LG-mediated Xiaomi CEC wake investigation
+
+The current registered LG wake and TV-reported HDMI_3 selection are the candidate CEC activation route. Reviewed public clients establish switchInput but no direct external-device CEC wake method. LG same-generation Main Power On documentation concerns source → TV, so TV → Xiaomi wake needs physical confirmation. [XIAOMI_CEC_WAKE.md](XIAOMI_CEC_WAKE.md) separates the Android mechanisms, owner reports and installation test. No extra permission, forced registration, generic POWER button or firmware-private Luna command is added.
