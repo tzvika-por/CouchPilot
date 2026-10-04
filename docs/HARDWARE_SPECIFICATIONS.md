@@ -53,3 +53,7 @@ Simplink can couple power across connected devices depending on settings; [LG's 
 ### Optional phone-to-Xiaomi Bluetooth route — 2026-10-04
 
 Android offers a public Bluetooth HID Device profile on API 28+. Its keyboard/Consumer Control reports provide a legitimate LAN-independent input route in principle. The powered-on Xiaomi's current Remote Service TXT advertises bt=02:00:00:00:00:02; this is an installation observation, not a model constant. The adapter is implemented behind StreamerController, with preserved LAN support. Xiaomi accessory acceptance, phone OEM profile support, yes+ long-OK and Bluetooth wake remain IMPLEMENTED BUT UNPROVEN. Exact vendor key layout is an OPEN QUESTION. Primary API/USB/AOSP references and foreground role limitations are in XIAOMI_BLUETOOTH_PROTOCOL.md. No extra physical diagnostic is requested during engineering.
+
+## Xiaomi Bluetooth evidence update — 2026-10-04
+
+The customer established a Galaxy/Xiaomi bond: Xiaomi retained the phone accessory after exiting setup, and MyRemote eventually showed Xiaomi Connected after manual recovery. The screenshot reports LG and Samsung Connected at the same time. Initial brief disconnects/retry loops occurred. Native HID association is supported by this evidence; reliable automatic recovery, received keys/long press, simultaneous command delivery and standby wake remain unproven. No conclusion about Wi-Fi reachability follows from Bluetooth success.

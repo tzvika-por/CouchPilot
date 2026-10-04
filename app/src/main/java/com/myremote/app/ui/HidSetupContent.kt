@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.myremote.app.R
 import com.myremote.app.domain.FailureKind
+import com.myremote.app.domain.ConnectionState
 import com.myremote.app.hid.HidHost
 
 @Composable
@@ -17,6 +18,7 @@ fun HidSetupContent(
     hosts: List<HidHost>, hasPermission: Boolean, supported: Boolean, registered: Boolean,
     pairing: Boolean, error: FailureKind?, onPermission: () -> Unit,
     onPair: () -> Unit, onHost: (HidHost) -> Unit, onSettings: () -> Unit = {},
+    bonded: Boolean = false, connection: ConnectionState = ConnectionState.DISCONNECTED,
 ) {
     Text(stringResource(R.string.bluetooth_remote_guidance))
     Text(stringResource(R.string.bluetooth_host_note))
@@ -24,9 +26,14 @@ fun HidSetupContent(
     else if (!hasPermission) Button(onClick = onPermission, modifier = Modifier.fillMaxWidth().testTag("hid_permission")) {
         Text(stringResource(R.string.samsung_allow))
     } else {
-        Text(stringResource(R.string.bluetooth_tv_pair_steps))
-        Button(onClick = onPair, enabled = registered && !pairing, modifier = Modifier.fillMaxWidth().testTag("hid_pair")) {
-            Text(stringResource(if (pairing) R.string.bluetooth_pairing_started else R.string.bluetooth_pair_xiaomi))
+        Text(stringResource(if (bonded) R.string.bluetooth_saved_bond else R.string.bluetooth_tv_pair_steps))
+        Button(onClick = onPair, enabled = registered && !pairing && connection == ConnectionState.DISCONNECTED, modifier = Modifier.fillMaxWidth().testTag("hid_pair")) {
+            Text(stringResource(when {
+                connection == ConnectionState.CONNECTED -> R.string.xiaomi_connected
+                pairing -> R.string.bluetooth_pairing_started
+                bonded -> R.string.retry
+                else -> R.string.bluetooth_pair_xiaomi
+            }))
         }
         hosts.forEach { host ->
             OutlinedButton(onClick = { onHost(host) }, modifier = Modifier.fillMaxWidth().testTag("hid_host")) {

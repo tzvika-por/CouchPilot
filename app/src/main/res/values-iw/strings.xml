@@ -84,4 +84,5 @@
     <string name="bluetooth_pair_xiaomi">צימוד ל־Xiaomi</string>
     <string name="bluetooth_pairing_started">ממתינים לאישור הצימוד…</string>
     <string name="bluetooth_remote_unavailable">שליטה דרך Bluetooth אינה זמינה. ודאו ש־Bluetooth מופעל, או השתמשו ב־Wi-Fi.</string>
+    <string name="bluetooth_saved_bond">הטלפון כבר מצומד. החיבור מחדש משתמש בצימוד השמור; בדרך כלל אין צורך באישור נוסף.</string>
 </resources>

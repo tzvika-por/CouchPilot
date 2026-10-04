@@ -32,4 +32,12 @@ class HidAssociationTest {
         association.request()
         assertEquals(2, creates); assertEquals(2, failures)
     }
+    @Test fun disconnectAllowsAProfileReconnectWithoutAnotherBondRequest() {
+        var connects = 0
+        val association = HidAssociation({ HidBondState.BONDED }, { fail("Re-pair"); false }, { connects++ }, { fail("Rejected") })
+        association.request(); association.request(); assertEquals(1, connects)
+        association.disconnected(); association.request(); association.request()
+        assertEquals(2, connects)
+    }
+
 }

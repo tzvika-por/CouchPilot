@@ -32,6 +32,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     val streamerConnection = selectedConnection.asStateFlow()
     val hidRegistered = hid.registered
     val hidPairing = hid.pairing
+    val hidBonded = hid.bonded
     fun pairHidHost() = hid.requestPairing()
     val hidError = hid.error
     private val mutableHidHosts = MutableStateFlow<List<com.myremote.app.hid.HidHost>>(emptyList())

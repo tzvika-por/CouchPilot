@@ -88,7 +88,10 @@ class AndroidHidBluetooth(private val context: Context) {
                     eventsChannel.trySend(HidEvent.CONNECTED)
                 }
                 BluetoothProfile.STATE_CONNECTING -> Unit
-                else -> if (profile?.connect(target) != true) eventsChannel.trySend(HidEvent.DISCONNECTED)
+                else -> if (profile?.connect(target) != true) {
+                    association.disconnected()
+                    eventsChannel.trySend(HidEvent.DISCONNECTED)
+                }
             }
         }
         private val association = HidAssociation(
@@ -121,6 +124,11 @@ class AndroidHidBluetooth(private val context: Context) {
             check(!closed.get())
             association.request()
         }
+        override fun reconnect() {
+            check(!closed.get())
+            if (!bonded) throw DeviceFailure(FailureKind.SECURITY, "Bluetooth bond is no longer available")
+            association.request()
+        }
 
         private val callback = object : BluetoothHidDevice.Callback() {
             override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
@@ -146,6 +154,7 @@ class AndroidHidBluetooth(private val context: Context) {
                         eventsChannel.trySend(HidEvent.CONNECTED)
                     }
                     BluetoothProfile.STATE_DISCONNECTED -> {
+                        association.disconnected()
                         connected = false
                         reports.clear()
                         eventsChannel.trySend(HidEvent.DISCONNECTED)

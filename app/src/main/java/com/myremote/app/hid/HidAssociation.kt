@@ -13,6 +13,7 @@ internal class HidAssociation(
     private fun connectOnce() {
         if (!connecting) { connecting = true; connect() }
     }
+    @Synchronized fun disconnected() { connecting = false }
     @Synchronized fun request() {
         when (state()) {
             HidBondState.BONDED -> connectOnce()

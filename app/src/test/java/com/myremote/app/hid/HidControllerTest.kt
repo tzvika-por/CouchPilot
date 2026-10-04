@@ -19,6 +19,9 @@ class HidControllerTest {
         val reports = mutableListOf<HidReport>()
         var closed = false
         var pairingRequests = 0
+        var reconnects = 0
+        var onReconnect: () -> Unit = {}
+        override fun reconnect() { reconnects++; onReconnect() }
         override fun requestPairing() { pairingRequests++ }
         override fun send(report: HidReport) { check(!closed); reports += report }
         override fun close() { closed = true; channel.close() }
@@ -90,20 +93,89 @@ class HidControllerTest {
         assertTrue(controller.registered.value)
         assertFalse(controller.pairing.value)
     }
-    @Test fun bondedReconnectBacksOffAndPermissionFailureStops() = runTest {
-        var attempts = 0
-        val transport = Transport()
-        val controller = HidStreamerController(HidTransportFactory {
-            if (++attempts == 1) transport else throw DeviceFailure(FailureKind.PERMISSION_DENIED, "Revoked")
-        }, backgroundScope, { host }, {})
-        controller.retry(); runCurrent()
-        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+    @Test fun bondedReconnectKeepsRegistrationAndPermissionFailureStops() = runTest {
+        var opens = 0
+        val transport = Transport().apply { onReconnect = { throw DeviceFailure(FailureKind.PERMISSION_DENIED, "Revoked") } }
+        val controller = HidStreamerController(HidTransportFactory { opens++; transport }, backgroundScope, { host }, {})
+        controller.retry(); runCurrent(); transport.channel.send(HidEvent.CONNECTED); runCurrent()
         transport.channel.send(HidEvent.DISCONNECTED); runCurrent()
+        assertFalse(transport.closed); assertTrue(controller.registered.value)
+        advanceTimeBy(2_999); runCurrent(); assertEquals(0, transport.reconnects)
+        advanceTimeBy(1); runCurrent(); assertEquals(1, transport.reconnects)
         assertTrue(transport.closed)
-        advanceTimeBy(2_999); runCurrent(); assertEquals(1, attempts)
-        advanceTimeBy(1); runCurrent(); assertEquals(2, attempts)
-        advanceTimeBy(120_000); runCurrent(); assertEquals(2, attempts)
+        advanceTimeBy(120_000); runCurrent(); assertEquals(1, opens)
         assertEquals(FailureKind.PERMISSION_DENIED, controller.error.value)
+    }
+    @Test fun twoSecondConnectionsCannotResetBackoffAndTvCanRecoverAfterBudgetIsExhausted() = runTest {
+        var opens = 0
+        val transport = Transport()
+        val controller = HidStreamerController(HidTransportFactory { opens++; transport }, backgroundScope, { host }, {}, { testScheduler.currentTime })
+        controller.retry(); runCurrent()
+        for ((index, wait) in listOf(3_000L, 6_000L, 12_000L).withIndex()) {
+            transport.channel.send(HidEvent.CONNECTED); runCurrent()
+            advanceTimeBy(2_000); runCurrent()
+            transport.channel.send(HidEvent.DISCONNECTED); runCurrent()
+            assertFalse(transport.closed)
+            advanceTimeBy(wait - 1); runCurrent(); assertEquals(index, transport.reconnects)
+            advanceTimeBy(1); runCurrent(); assertEquals(index + 1, transport.reconnects)
+        }
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        advanceTimeBy(2_000); runCurrent(); transport.channel.send(HidEvent.DISCONNECTED); runCurrent()
+        advanceTimeBy(120_000); runCurrent()
+        assertEquals(3, transport.reconnects); assertEquals(1, opens)
+        assertTrue(controller.registered.value); assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        assertEquals(1, opens); assertEquals(0, transport.pairingRequests)
+        // Another brief TV-originated connection must not restart automatic attempts.
+        advanceTimeBy(2_000); runCurrent(); transport.channel.send(HidEvent.DISCONNECTED); runCurrent()
+        advanceTimeBy(120_000); runCurrent(); assertEquals(3, transport.reconnects)
+        assertTrue(controller.registered.value)
+    }
+    @Test fun stableConnectionResetsBackoffAndForegroundCleanupStillClosesEverything() = runTest {
+        val transport = Transport()
+        val controller = HidStreamerController(HidTransportFactory { transport }, backgroundScope, { host }, {}, { testScheduler.currentTime })
+        controller.retry(); runCurrent(); transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        transport.channel.send(HidEvent.DISCONNECTED); runCurrent(); advanceTimeBy(3_000); runCurrent()
+        transport.channel.send(HidEvent.CONNECTED); runCurrent(); advanceTimeBy(30_000); runCurrent()
+        transport.channel.send(HidEvent.DISCONNECTED); runCurrent()
+        advanceTimeBy(2_999); runCurrent(); assertEquals(1, transport.reconnects)
+        advanceTimeBy(1); runCurrent(); assertEquals(2, transport.reconnects)
+        controller.pause(); runCurrent(); assertTrue(transport.closed)
+        assertFalse(controller.registered.value)
+    }
+    @Test fun manualRetryRestartsExhaustedBudgetWithoutRePairingOrReplacingSdp() = runTest {
+        val transport = Transport()
+        val controller = HidStreamerController(HidTransportFactory { transport }, backgroundScope, { host }, {})
+        controller.retry(); runCurrent()
+        // Each connection attempt times out; no TV callbacks arrive.
+        advanceTimeBy(101_001); runCurrent()
+        assertEquals(3, transport.reconnects)
+        assertTrue(controller.registered.value)
+        controller.retry(); runCurrent(); assertEquals(4, transport.reconnects)
+        assertEquals(0, transport.pairingRequests)
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+    }
+    @Test fun oldPressCannotReleaseAReplacementSessionOrCloseItsRegistration() = runTest {
+        val transport = Transport()
+        val controller = HidStreamerController(HidTransportFactory { transport }, backgroundScope, { host }, {})
+        controller.retry(); runCurrent(); advanceTimeBy(101_001); runCurrent()
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        val old = async { runCatching { controller.sendKey(RemoteKey.CENTER, PressKind.LONG) } }
+        runCurrent(); advanceTimeBy(300); runCurrent()
+        transport.channel.send(HidEvent.DISCONNECTED); runCurrent()
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        val replacement = async { controller.sendKey(RemoteKey.RIGHT, PressKind.LONG) }
+        runCurrent(); advanceTimeBy(351); runCurrent()
+        assertTrue(old.await().isFailure)
+        assertEquals(2, transport.reports.size)
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        assertTrue(controller.registered.value); assertFalse(transport.closed)
+        advanceTimeBy(300); runCurrent(); replacement.await()
+        assertEquals(3, transport.reports.size)
+        assertArrayEquals(byteArrayOf(0x45, 0), transport.reports[1].bytes)
+        assertArrayEquals(byteArrayOf(0, 0), transport.reports[2].bytes)
     }
     @Test fun replacingSelectionCannotBeClobberedByCancelledSessionCleanup() = runTest {
         val transports = mutableListOf<Transport>(); var saved = host

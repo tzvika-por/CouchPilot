@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
             val hidHosts by remote.hidHosts.collectAsStateWithLifecycle()
             val hidError by remote.hidError.collectAsStateWithLifecycle()
             val hidPairing by remote.hidPairing.collectAsStateWithLifecycle()
+            val hidBonded by remote.hidBonded.collectAsStateWithLifecycle()
             val hasBluetoothPermission by remote.bluetoothPermission.collectAsStateWithLifecycle()
             val soundbarSetup by remote.soundbarSetupVisible.collectAsStateWithLifecycle()
             val soundbarDevices by remote.soundbarDevices.collectAsStateWithLifecycle()
@@ -94,7 +95,7 @@ class MainActivity : ComponentActivity() {
                         com.myremote.app.ui.HidSetupContent(
                             hosts = hidHosts, hasPermission = hasBluetoothPermission,
                             supported = remote.hidBluetooth.supported, registered = hidRegistered,
-                            pairing = hidPairing, error = hidError,
+                            pairing = hidPairing, error = hidError, bonded = hidBonded, connection = connection,
                             onPermission = {
                                 if (Build.VERSION.SDK_INT >= 31) hidPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
                                 else remote.refreshHidHosts()

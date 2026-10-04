@@ -8,6 +8,7 @@ internal interface HidTransport : AutoCloseable {
     val bonded: Boolean
     val failure: com.myremote.app.domain.FailureKind? get() = null
     val events: Flow<HidEvent>
+    fun reconnect()
     fun requestPairing()
     fun send(report: HidReport)
 }

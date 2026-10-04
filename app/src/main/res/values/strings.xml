@@ -84,4 +84,5 @@
     <string name="bluetooth_pair_xiaomi">Pair Xiaomi</string>
     <string name="bluetooth_pairing_started">Waiting for pairing approval…</string>
     <string name="bluetooth_remote_unavailable">Bluetooth remote is unavailable. Check Bluetooth is on, or use Wi-Fi.</string>
+    <string name="bluetooth_saved_bond">This phone is already paired. Reconnecting uses the saved pairing; new approval is normally unnecessary.</string>
 </resources>

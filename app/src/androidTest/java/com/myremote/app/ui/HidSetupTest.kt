@@ -56,4 +56,13 @@ class HidSetupTest {
         } } }
         composeRule.onNodeWithTag("hid_pair").assertIsNotEnabled()
     }
+    @Test fun connectedSavedBondDoesNotOfferPairingAgain() {
+        composeRule.setContent { RemoteTheme { Column {
+            HidSetupContent(emptyList(), true, true, true, false, null,
+                onPermission = {}, onPair = { fail("Already connected") }, onHost = {},
+                bonded = true, connection = ConnectionState.CONNECTED)
+        } } }
+        composeRule.onNodeWithTag("hid_pair").assertIsNotEnabled()
+    }
+
 }
