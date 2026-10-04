@@ -21,6 +21,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.selects.select
 
 /** Public Android bond/connection callbacks establish readiness, never API return booleans. */
 class HidStreamerController internal constructor(
@@ -36,7 +40,12 @@ class HidStreamerController internal constructor(
     val error = mutableError.asStateFlow()
     private val mutableReady = MutableStateFlow(false)
     val registered = mutableReady.asStateFlow()
+    private val mutablePairing = MutableStateFlow(false)
+    val pairing = mutablePairing.asStateFlow()
+    @Volatile private var pairRequest: Channel<Unit>? = null
     private var job: Job? = null
+
+    fun requestPairing() { pairRequest?.trySend(Unit) }
     private val generation = java.util.concurrent.atomic.AtomicLong()
     @Volatile private var transport: HidTransport? = null
     @Volatile private var session: HidSession? = null
@@ -56,16 +65,34 @@ class HidStreamerController internal constructor(
                     opened = withTimeout(10_000) { factory.open(host) }
                     currentCoroutineContext().ensureActive()
                     transport = opened
-                    mutableReady.value = true
-                    mutableState.value = if (opened.bonded) ConnectionState.CONNECTING else ConnectionState.PAIRING
-                    // First association waits for an ordinary TV-side accessory approval, not a retry loop.
                     val active = opened
-                    withTimeout(if (active.bonded) 20_000 else 120_000) {
-                        active.events.first { event ->
-                            if (event == HidEvent.DISCONNECTED) throw DeviceFailure(active.failure ?: FailureKind.NETWORK, "Bluetooth host disconnected")
-                            event == HidEvent.CONNECTED
+                    val requests = Channel<Unit>(Channel.CONFLATED)
+                    pairRequest = requests
+                    mutableReady.value = true
+                    // Reading setup must not consume the first-association deadline.
+                    mutableState.value = if (active.bonded) ConnectionState.CONNECTING else ConnectionState.DISCONNECTED
+                    try {
+                        coroutineScope {
+                            val connected = async {
+                                active.events.first { event ->
+                                    if (event == HidEvent.DISCONNECTED) throw DeviceFailure(active.failure ?: FailureKind.NETWORK, "Bluetooth host disconnected")
+                                    event == HidEvent.CONNECTED
+                                }
+                            }
+                            if (active.bonded) withTimeout(20_000) { connected.await() }
+                            else select<Unit> {
+                                connected.onAwait { }
+                                requests.onReceive {
+                                    mutablePairing.value = true
+                                    mutableState.value = ConnectionState.PAIRING
+                                    active.requestPairing()
+                                    withTimeout(120_000) { connected.await() }
+                                }
+                            }
                         }
-                    }
+                    } finally { requests.close() }
+                    pairRequest = null
+                    mutablePairing.value = false
                     session = HidSession(active::send)
                     mutableState.value = ConnectionState.CONNECTED
                     attempt = 0
@@ -82,6 +109,8 @@ class HidStreamerController internal constructor(
                         session = null
                         transport = null
                         mutableReady.value = false
+                        mutablePairing.value = false
+                        pairRequest = null
                     }
                     opened?.close()
                 }
@@ -108,6 +137,8 @@ class HidStreamerController internal constructor(
         session = null
         transport?.close(); transport = null
         mutableReady.value = false
+        mutablePairing.value = false
+        pairRequest?.close(); pairRequest = null
         mutableState.value = if (load() == null) ConnectionState.NOT_CONFIGURED else ConnectionState.DISCONNECTED
     }
     fun forget() { pause(); save(null); mutableError.value = null; mutableState.value = ConnectionState.NOT_CONFIGURED }

@@ -178,7 +178,7 @@ Final candidate wrapper run completed in 1m 25s. Final installed APK/test APK ru
 The final session can include one soundbar volume tap while Xiaomi Bluetooth is connected to confirm the new simultaneous-radio scenario. This is not a repeat of the LG/Samsung command investigation or a hardware test for icons.
 
 
-Final candidate acceptance sequence: TV and Xiaomi on; install over the existing app and select Xiaomi. In Xiaomi setup choose Bluetooth and make the phone visible; approve its normal accessory pairing on Xiaomi. Confirm Connected and Home/direction/OK, then yes+ channels 1/2 and Last Channel. Reopen to check bond reuse and make one volume tap for dual-profile coexistence. Finish with the single LG wake cycle above. These are the remaining connection/correctness facts for a complete candidate; existing source/mute/icon tests are not requested again. Power Off All and unverified soundbar power remain absent.
+**Superseded — historical candidate sequence:** TV and Xiaomi on; install over the existing app and select Xiaomi. In Xiaomi setup choose Bluetooth and make the phone visible; approve its normal accessory pairing on Xiaomi. Confirm Connected and Home/direction/OK, then yes+ channels 1/2 and Last Channel. Reopen to check bond reuse and make one volume tap for dual-profile coexistence. Finish with the single LG wake cycle above. These are the remaining connection/correctness facts for a complete candidate; existing source/mute/icon tests are not requested again. Power Off All and unverified soundbar power remain absent.
 
 
 ## Mac Tailscale hypothesis tested directly — 2026-10-04
@@ -194,3 +194,19 @@ One brief autonomous comparison paused Tailscale, explicitly confirmed BackendSt
 **Conclusion:** the active Mac Tailscale connection is not required for the observed Wi-Fi failure; pausing it did not fix connectivity. Selective Wi-Fi neighbor/client/bridge filtering remains the strongest hypothesis. Exact AP/router cause is still unproven, and this is not a physical Android pairing/control success. The comparison does not claim to remove or audit every installed network extension. Packet capture was unavailable without an administrator password; no password or customer diagnostic was requested because the controlled socket comparison answered the active-VPN hypothesis.
 
 Application code, APK and prior 79-JVM/10-Compose validation remain unchanged. This is a documentation-only evidence update. No further physical test is requested by this investigation; no push, tag or release.
+
+## Failed Galaxy visibility — 2026-10-04
+
+**FAILED — physical customer attempt:** Xiaomi’s Bluetooth accessory search did not show the Galaxy phone. A headset-like “HK BTA 10” item was shown; its identity is unknown and it was not treated as the phone. Pairing/control was not reached. Prior LG HDMI switching and Samsung volume/mute successes remain valid.
+
+**PROVEN — code/platform review:** the earlier Bluetooth setup depended on phone discoverability plus TV inquiry filtering, ignored discoverability consent result, and could expire HID registration before the user began TV pairing. AOSP accessory criteria filter inquiry Class of Device; native HID SDP registration does not supply a public inquiry-class override. SDP keyboard classification alone is insufficient evidence of a visibility fix.
+
+**STRONGEST HYPOTHESIS / NOT PROVEN:** TV classification filtering excluded the phone, with early expiration another possible cause. No Galaxy radio trace or Xiaomi vendor filter capture exists. This failure does not establish missing Bluetooth support or a defective phone.
+
+**IMPLEMENTED BUT UNPROVEN physically:** revised explicit phone-initiated OS bonding to the configured Xiaomi address, selected-host bond receiver, callback-only connection, keyboard SDP subclass, user-action-based deadline and no ADVERTISE requirement. No external test is requested until internal gates finish. Successful Galaxy/Xiaomi bonding, key receipt, yes+ long press, coexistence and Xiaomi wake remain unproven. The previous discover-phone acceptance instructions are superseded.
+
+**PROVEN — corrected candidate automated validation:** debug and unsigned release APK builds pass; all 84 JVM tests pass (0 failures/errors/skips); both lint variants pass (0 errors, 18 advisory warnings each); Compose test APK compiles. The final API 35 instrumentation run passes 12 tests in 10.497 seconds: 11 Compose tests plus one real public HID profile/SDP registration test. Five added JVM tests cover association, stored bond reuse, rejection, explicit-action timing and cancellation; the revised timeout test also proves reading instructions does not consume the pairing deadline. Duplicate bond callbacks/requests cannot initiate duplicate profile connects. Both localized resource sets have 85 unique matching names; XML and diff checks pass.
+
+**PROVEN — production emulator execution:** native HID registration occurred in the production app; tapping Pair Xiaomi called Android createBond and produced BOND_NONE → BOND_BONDING plus the localized waiting state. No radio peer exists in the emulator, and this is not successful bonding. English and Hebrew/RTL setup were inspected. No customer phone, TV or router settings were changed during this investigation.
+
+**Remaining decisive hardware boundary:** install the corrected candidate, open Xiaomi’s Pair accessory screen, then use MyRemote’s Pair Xiaomi action and approve system prompts. Connected plus a received Home command establishes the initial association/control path. If that attempt fails, stop and return to autonomous investigation. Already-proven LG source and Samsung command tests are not requested again.

@@ -9,6 +9,9 @@ import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -25,8 +28,6 @@ class AndroidHidBluetooth(private val context: Context) {
     private val adapter get() = context.getSystemService(BluetoothManager::class.java)?.adapter
     fun hasPermission() = Build.VERSION.SDK_INT < 31 ||
         context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-    fun canAdvertise() = Build.VERSION.SDK_INT < 31 ||
-        context.checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
     val supported get() = Build.VERSION.SDK_INT >= 28 && adapter != null
 
     @SuppressLint("MissingPermission")
@@ -38,9 +39,6 @@ class AndroidHidBluetooth(private val context: Context) {
                 name.contains("Google TV", true)
         }.map { HidHost(it.name ?: "TV", it.address) }.sortedBy { it.name }
     }
-
-    @SuppressLint("MissingPermission")
-    fun phoneName(): String? = if (hasPermission()) adapter?.name else null
 
     @SuppressLint("MissingPermission")
     internal val factory = HidTransportFactory { host ->
@@ -75,29 +73,68 @@ class AndroidHidBluetooth(private val context: Context) {
         override val bonded get() = adapter.bondedDevices.any { matches(it) }
         private fun matches(device: BluetoothDevice) = device.address.equals(host.address, true)
         private fun reject(device: BluetoothDevice) { runCatching { profile?.disconnect(device) } }
+        private var receiverRegistered = false
+        private fun bondState(value: Int) = when (value) {
+            BluetoothDevice.BOND_BONDED -> HidBondState.BONDED
+            BluetoothDevice.BOND_BONDING -> HidBondState.BONDING
+            else -> HidBondState.NONE
+        }
+        private fun connectTarget() {
+            if (closed.get()) return
+            val target = adapter.getRemoteDevice(host.address)
+            when (profile?.getConnectionState(target)) {
+                BluetoothProfile.STATE_CONNECTED -> {
+                    connected = true
+                    eventsChannel.trySend(HidEvent.CONNECTED)
+                }
+                BluetoothProfile.STATE_CONNECTING -> Unit
+                else -> if (profile?.connect(target) != true) eventsChannel.trySend(HidEvent.DISCONNECTED)
+            }
+        }
+        private val association = HidAssociation(
+            state = { bondState(adapter.getRemoteDevice(host.address).bondState) },
+            createBond = { adapter.getRemoteDevice(host.address).createBond() },
+            connect = ::connectTarget,
+            rejected = {
+                failure = FailureKind.SECURITY
+                eventsChannel.trySend(HidEvent.DISCONNECTED)
+            },
+        )
+        private val bondReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (closed.get() || intent.action != BluetoothDevice.ACTION_BOND_STATE_CHANGED) return
+                val device = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                    else @Suppress("DEPRECATION") intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+                if (device == null || !matches(device)) return
+                try {
+                    association.changed(
+                        bondState(intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.BOND_NONE)),
+                        bondState(intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)),
+                    )
+                } catch (error: Exception) {
+                    failure = com.myremote.app.domain.failureKind(error)
+                    eventsChannel.trySend(HidEvent.DISCONNECTED)
+                }
+            }
+        }
+        override fun requestPairing() {
+            check(!closed.get())
+            association.request()
+        }
 
         private val callback = object : BluetoothHidDevice.Callback() {
             override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
                 if (closed.get()) return
                 if (!registered) {
+                    failure = FailureKind.UNAVAILABLE
                     registration.completeExceptionally(DeviceFailure(FailureKind.UNAVAILABLE, "Bluetooth remote registration was lost"))
                     eventsChannel.trySend(HidEvent.DISCONNECTED)
                     return
                 }
                 pluggedDevice?.takeUnless(::matches)?.let(::reject)
                 registration.complete(Unit)
-                // An unbonded host pairs by finding this phone in its normal accessory UI.
-                if (bonded) {
-                    val target = adapter.getRemoteDevice(host.address)
-                    when (profile?.getConnectionState(target)) {
-                        BluetoothProfile.STATE_CONNECTED -> {
-                            connected = true
-                            eventsChannel.trySend(HidEvent.CONNECTED)
-                        }
-                        BluetoothProfile.STATE_CONNECTING -> Unit
-                        else -> if (profile?.connect(target) != true) eventsChannel.trySend(HidEvent.DISCONNECTED)
-                    }
-                }
+                // First association is initiated explicitly by the phone, not TV inquiry filtering.
+                if (bonded) association.request()
             }
             override fun onConnectionStateChanged(device: BluetoothDevice, state: Int) {
                 if (closed.get()) return
@@ -145,7 +182,7 @@ class AndroidHidBluetooth(private val context: Context) {
                 if (closed.get()) { adapter.closeProfileProxy(kind, proxy); return@synchronized }
                 val hid = proxy as BluetoothHidDevice
                 profile = hid
-                val sdp = BluetoothHidDeviceAppSdpSettings("My Remote", "TV remote", "My Remote", BluetoothHidDevice.SUBCLASS1_NONE, HidProtocol.descriptor)
+                val sdp = BluetoothHidDeviceAppSdpSettings("My Remote", "TV remote", "My Remote", BluetoothHidDevice.SUBCLASS1_KEYBOARD, HidProtocol.descriptor)
                 try {
                     val sent = hid.registerApp(sdp, null, null, { task ->
                         if (!closed.get()) runCatching { executor.execute {
@@ -168,6 +205,11 @@ class AndroidHidBluetooth(private val context: Context) {
             }
         }
         fun start() {
+            val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+            // Bluetooth broadcasts originate from another UID; the action is system protected.
+            if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(bondReceiver, filter, Context.RECEIVER_EXPORTED)
+            else context.registerReceiver(bondReceiver, filter)
+            receiverRegistered = true
             if (!adapter.getProfileProxy(context, listener, BluetoothProfile.HID_DEVICE))
                 throw DeviceFailure(FailureKind.UNAVAILABLE, "Bluetooth HID is not supported by this phone")
         }
@@ -181,6 +223,7 @@ class AndroidHidBluetooth(private val context: Context) {
         override fun close() {
             if (!closed.compareAndSet(false, true)) return
             connected = false
+            if (receiverRegistered) { runCatching { context.unregisterReceiver(bondReceiver) }; receiverRegistered = false }
             val attached = synchronized(lifetime) { profile.also { profile = null } }
             attached?.let { hid ->
                 for (id in 1..3) runCatching {

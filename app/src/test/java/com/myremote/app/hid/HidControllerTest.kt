@@ -18,6 +18,8 @@ class HidControllerTest {
         override val events = channel.receiveAsFlow()
         val reports = mutableListOf<HidReport>()
         var closed = false
+        var pairingRequests = 0
+        override fun requestPairing() { pairingRequests++ }
         override fun send(report: HidReport) { check(!closed); reports += report }
         override fun close() { closed = true; channel.close() }
     }
@@ -45,12 +47,48 @@ class HidControllerTest {
         val transport = Transport(false)
         val controller = HidStreamerController(HidTransportFactory { count++; transport }, backgroundScope, { host }, {})
         controller.retry(); runCurrent()
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        assertTrue(controller.registered.value)
+        advanceTimeBy(240_000); runCurrent()
+        assertTrue(controller.registered.value)
+        assertFalse(transport.closed)
+        controller.requestPairing(); controller.requestPairing(); runCurrent()
+        assertEquals(1, transport.pairingRequests)
+        assertTrue(controller.pairing.value)
         assertEquals(ConnectionState.PAIRING, controller.connectionState)
         advanceTimeBy(120_001); runCurrent()
         assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
         assertEquals(FailureKind.NETWORK, controller.error.value)
         assertTrue(transport.closed)
         advanceTimeBy(120_000); runCurrent(); assertEquals(1, count)
+    }
+    @Test fun initialPairingRequiresExplicitActionAndOnlyConnectionCallbackMakesItReady() = runTest {
+        val transport = Transport(false)
+        val controller = HidStreamerController(HidTransportFactory { transport }, backgroundScope, { host }, {})
+        controller.retry(); runCurrent()
+        assertEquals(0, transport.pairingRequests)
+        controller.requestPairing(); runCurrent()
+        assertEquals(ConnectionState.PAIRING, controller.connectionState)
+        assertTrue(controller.pairing.value)
+        transport.bonded = true
+        assertEquals(ConnectionState.PAIRING, controller.connectionState)
+        transport.channel.send(HidEvent.CONNECTED); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        assertFalse(controller.pairing.value)
+        controller.pause(); runCurrent(); assertTrue(transport.closed)
+    }
+    @Test fun leavingDuringPairingClosesNativeOwnershipAndDiscardsOldPairRequests() = runTest {
+        val transports = mutableListOf<Transport>()
+        val controller = HidStreamerController(HidTransportFactory { Transport(false).also(transports::add) }, backgroundScope, { host }, {})
+        controller.retry(); runCurrent(); controller.requestPairing(); runCurrent()
+        assertTrue(controller.pairing.value)
+        controller.pause(); runCurrent()
+        assertTrue(transports[0].closed); assertFalse(controller.pairing.value)
+        controller.requestPairing()
+        controller.retry(); runCurrent()
+        assertEquals(0, transports[1].pairingRequests)
+        assertTrue(controller.registered.value)
+        assertFalse(controller.pairing.value)
     }
     @Test fun bondedReconnectBacksOffAndPermissionFailureStops() = runTest {
         var attempts = 0

@@ -80,8 +80,8 @@
     <string name="bluetooth_remote_guidance">Bluetooth מאפשר שליטה ישירה ב־Xiaomi כשאין חיבור דרך Wi-Fi. מבצעים צימוד פעם אחת, ובהמשך החיבור נשמר.</string>
     <string name="bluetooth_host_note">כשהשלט פתוח, Android עשוי לנתק מקלדת או עכבר Bluetooth המחוברים לטלפון.</string>
     <string name="bluetooth_remote_unsupported">הטלפון אינו תומך בשליטה מרחוק דרך Bluetooth. יש להשתמש ב־Wi-Fi.</string>
-    <string name="bluetooth_tv_pair_steps">להגדרה ראשונית: הפעילו את נראות הטלפון למטה. ב־Xiaomi פתחו הגדרות ← שלטים ואביזרים ← צימוד אביזר, בחרו %1$s ואשרו את הצימוד. השאירו את השלט פתוח.</string>
-    <string name="bluetooth_make_visible">הפיכת הטלפון לגלוי למשך 2 דקות</string>
-    <string name="this_phone">הטלפון הזה</string>
+    <string name="bluetooth_tv_pair_steps">להגדרה ראשונית: ב־Xiaomi פתחו הגדרות ← שלטים ואביזרים ← צימוד אביזר. לאחר מכן לחצו למטה על צימוד ל־Xiaomi ואשרו בקשות צימוד בטלפון ובטלוויזיה. אין צורך למצוא את הטלפון ברשימה בטלוויזיה. השאירו את השלט פתוח.</string>
+    <string name="bluetooth_pair_xiaomi">צימוד ל־Xiaomi</string>
+    <string name="bluetooth_pairing_started">ממתינים לאישור הצימוד…</string>
     <string name="bluetooth_remote_unavailable">שליטה דרך Bluetooth אינה זמינה. ודאו ש־Bluetooth מופעל, או השתמשו ב־Wi-Fi.</string>
 </resources>

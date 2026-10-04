@@ -31,11 +31,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private val selectedConnection = MutableStateFlow(hidStore.mode())
     val streamerConnection = selectedConnection.asStateFlow()
     val hidRegistered = hid.registered
+    val hidPairing = hid.pairing
+    fun pairHidHost() = hid.requestPairing()
     val hidError = hid.error
     private val mutableHidHosts = MutableStateFlow<List<com.myremote.app.hid.HidHost>>(emptyList())
     val hidHosts = mutableHidHosts.asStateFlow()
-    private val mutablePhoneName = MutableStateFlow<String?>(null)
-    val phoneBluetoothName = mutablePhoneName.asStateFlow()
     private val route = com.myremote.app.hid.StreamerRoute(streamer, hid) { selectedConnection.value }
     private val soundbar = SamsungSoundbarController(application)
     val bluetooth = SamsungBluetooth(application)
@@ -166,7 +166,6 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     fun refreshHidHosts() {
         _bluetoothPermission.value = bluetooth.hasPermission()
         mutableHidHosts.value = runCatching { hidBluetooth.pairedHosts() }.getOrDefault(emptyList())
-        mutablePhoneName.value = runCatching { hidBluetooth.phoneName() }.getOrNull()
         if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.BLUETOOTH) hid.retry()
     }
 

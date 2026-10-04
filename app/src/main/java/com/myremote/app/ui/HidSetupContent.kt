@@ -15,8 +15,8 @@ import com.myremote.app.hid.HidHost
 @Composable
 fun HidSetupContent(
     hosts: List<HidHost>, hasPermission: Boolean, supported: Boolean, registered: Boolean,
-    phoneName: String?, error: FailureKind?, onPermission: () -> Unit,
-    onVisible: () -> Unit, onHost: (HidHost) -> Unit, onSettings: () -> Unit = {},
+    pairing: Boolean, error: FailureKind?, onPermission: () -> Unit,
+    onPair: () -> Unit, onHost: (HidHost) -> Unit, onSettings: () -> Unit = {},
 ) {
     Text(stringResource(R.string.bluetooth_remote_guidance))
     Text(stringResource(R.string.bluetooth_host_note))
@@ -24,9 +24,9 @@ fun HidSetupContent(
     else if (!hasPermission) Button(onClick = onPermission, modifier = Modifier.fillMaxWidth().testTag("hid_permission")) {
         Text(stringResource(R.string.samsung_allow))
     } else {
-        Text(stringResource(R.string.bluetooth_tv_pair_steps, phoneName ?: stringResource(R.string.this_phone)))
-        Button(onClick = onVisible, enabled = registered, modifier = Modifier.fillMaxWidth().testTag("hid_visible")) {
-            Text(stringResource(R.string.bluetooth_make_visible))
+        Text(stringResource(R.string.bluetooth_tv_pair_steps))
+        Button(onClick = onPair, enabled = registered && !pairing, modifier = Modifier.fillMaxWidth().testTag("hid_pair")) {
+            Text(stringResource(if (pairing) R.string.bluetooth_pairing_started else R.string.bluetooth_pair_xiaomi))
         }
         hosts.forEach { host ->
             OutlinedButton(onClick = { onHost(host) }, modifier = Modifier.fillMaxWidth().testTag("hid_host")) {
