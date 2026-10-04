@@ -6,15 +6,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkRemoteColors = darkColorScheme(
-    primary = Color(0xFF99C2FF),
-    onPrimary = Color(0xFF092544),
-    secondary = Color(0xFFB6C8E1),
-    background = Color(0xFF10131B),
-    onBackground = Color(0xFFE8EAF1),
-    surface = Color(0xFF1A2030),
-    onSurface = Color(0xFFE8EAF1),
-    surfaceVariant = Color(0xFF293247),
-    onSurfaceVariant = Color(0xFFCDD5E6),
+    primary = Color(0xFF36C9FF),
+    onPrimary = Color(0xFF04283E),
+    secondary = Color(0xFFADBBD3),
+    background = Color(0xFF080F18),
+    onBackground = Color(0xFFE4ECFF),
+    surface = Color(0xFF152231),
+    onSurface = Color(0xFFE4ECFF),
+    surfaceVariant = Color(0xFF243448),
+    onSurfaceVariant = Color(0xFFBCCBE2),
 )
 
 @Composable

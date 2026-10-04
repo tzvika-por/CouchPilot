@@ -103,7 +103,8 @@ class RemoteScreenTest {
                     onConnectionSessionToggle = { disconnects++; active.value = !active.value })
             }
         }
-        composeRule.onNodeWithTag("connection_session").performScrollTo().performClick()
+        composeRule.onNodeWithTag("remote_settings").performScrollTo().performClick()
+        composeRule.onNodeWithTag("connection_session").performClick()
         assertEquals(1, disconnects)
         assertEquals(false, active.value)
         assertEquals(emptyList<RemoteAction>(), actions)

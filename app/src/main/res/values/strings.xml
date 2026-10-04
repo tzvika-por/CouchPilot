@@ -97,4 +97,11 @@
     <string name="remote_paused_guidance">Remote connections are paused. Your devices remain on.</string>
     <string name="error_wake_not_configured">No wake address is saved for this TV. Connect while the TV is on to finish wake setup.</string>
     <string name="error_wake_unconfirmed">The device did not reconnect after the wake attempt. Its standby wake setting may need to be enabled.</string>
+    <string name="remote_settings">Remote settings</string>
+    <string name="remote_help">How to use</string>
+    <string name="remote_help_text">Choose a source to switch the TV input. Power targets the device named below the title. Xiaomi off and soundbar power have their own controls. Sound always controls Samsung. Tap a device card to open its connection settings. You can use other apps while the remote stays connected.</string>
+    <string name="number_pad">Number pad</string>
+    <string name="device_lg_short">LG TV</string>
+    <string name="device_xiaomi_short">Xiaomi</string>
+    <string name="device_samsung_short">Samsung M360</string>
 </resources>

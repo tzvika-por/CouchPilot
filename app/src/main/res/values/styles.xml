@@ -1,7 +1,8 @@
 <resources>
     <style name="Theme.MyRemote" parent="android:style/Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#10131B</item>
-        <item name="android:navigationBarColor">#10131B</item>
+        <item name="android:statusBarColor">#080F18</item>
+        <item name="android:navigationBarColor">#080F18</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#080F18</item>
     </style>
 </resources>

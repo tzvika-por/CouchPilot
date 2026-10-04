@@ -97,4 +97,11 @@
     <string name="remote_paused_guidance">חיבורי השלט מושהים. המכשירים נשארים דולקים.</string>
     <string name="error_wake_not_configured">לא נשמרה כתובת להפעלת הטלוויזיה ממצב המתנה. התחברו כשהטלוויזיה פועלת כדי להשלים את ההגדרה.</string>
     <string name="error_wake_unconfirmed">המכשיר לא התחבר מחדש לאחר ניסיון ההפעלה. ייתכן שיש להפעיל במכשיר את האפשרות להפעלה ממצב המתנה.</string>
+    <string name="remote_settings">הגדרות השלט</string>
+    <string name="remote_help">איך משתמשים</string>
+    <string name="remote_help_text">בחרו מקור כדי להחליף כניסה בטלוויזיה. כפתור ההפעלה שולט במכשיר שמופיע מתחת לכותרת. לשיאומי ולמקרן הקול יש פקדי כיבוי נפרדים. פקדי השמע שולטים תמיד בסמסונג. לחצו על כרטיס מכשיר כדי לפתוח את הגדרות החיבור שלו. אפשר להשתמש באפליקציות אחרות כשהשלט נשאר מחובר.</string>
+    <string name="number_pad">לוח מספרים</string>
+    <string name="device_lg_short">LG TV</string>
+    <string name="device_xiaomi_short">Xiaomi</string>
+    <string name="device_samsung_short">Samsung M360</string>
 </resources>
