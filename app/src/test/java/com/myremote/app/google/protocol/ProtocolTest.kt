@@ -35,7 +35,7 @@ class ProtocolTest {
 
     @Test fun pairingTransitionsWaitForCodeAndSecretAck() {
         val handshake = PairingHandshake()
-        handshake.request("My Remote")
+        handshake.request("CouchPilot")
         handshake.accept(PairingProtocol.wrap(PairingProtocol.REQUEST_ACK, byteArrayOf()))
         assertEquals(PairingHandshake.Step.OPTIONS_SENT, handshake.step)
         val tvOptions = ProtoWire.message(2, ProtoWire.concat(ProtoWire.integer(1, 3), ProtoWire.integer(2, 6)))

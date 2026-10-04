@@ -33,7 +33,8 @@ internal class OkHttpLgTransportFactory(private val lan: com.myremote.app.networ
     override suspend fun connect(host: String, expectedPin: String?): LgTransport {
         val trust = LgTvTrustManager(expectedPin)
         val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
-        val network = lan?.selected()
+        val network = lan?.let { it.selected() ?: throw com.myremote.app.domain.DeviceFailure(
+            com.myremote.app.domain.FailureKind.NETWORK, "No local network") }
         val builder = OkHttpClient.Builder()
             .sslSocketFactory(ssl.socketFactory, trust)
             .hostnameVerifier { _, _ -> true } // LG uses a self-signed LAN certificate; the pin is checked above.
@@ -44,7 +45,7 @@ internal class OkHttpLgTransportFactory(private val lan: com.myremote.app.networ
             .readTimeout(0, TimeUnit.MILLISECONDS)
         if (network != null) builder.socketFactory(network.socketFactory)
             .dns(object : okhttp3.Dns {
-                override fun lookup(hostname: String): List<java.net.InetAddress> = network.getAllByName(hostname).toList()
+                override fun lookup(hostname: String): List<java.net.InetAddress> = lan.localAddresses(network, network.getAllByName(hostname).toList())
             })
         val client = builder.build()
         val endpoint = if (':' in host && !host.startsWith("[")) "[$host]" else host
@@ -113,6 +114,8 @@ internal class LgTvTrustManager(private val expectedPin: String?) : X509TrustMan
         seenPin = pin
     }
 
-    override fun checkClientTrusted(chain: Array<X509Certificate>?, authType: String?) = Unit
+    override fun checkClientTrusted(chain: Array<X509Certificate>?, authType: String?) {
+        throw CertificateException("LG client is not a TLS server")
+    }
     override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 }

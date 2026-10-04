@@ -13,8 +13,3 @@ internal interface HidTransport : AutoCloseable {
     fun send(report: HidReport)
 }
 internal fun interface HidTransportFactory { suspend fun open(host: HidHost): HidTransport }
-
-/** This household observation is configuration, never a generic Xiaomi/model constant. */
-object XiaomiInstallation {
-    val observedHost = HidHost("Xiaomi TV Box", "02:00:00:00:00:02")
-}

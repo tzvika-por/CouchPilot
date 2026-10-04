@@ -70,7 +70,7 @@ internal class AndroidClientIdentity {
                 .setKeySize(2048)
                 .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA384, KeyProperties.DIGEST_SHA512)
                 .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
-                .setCertificateSubject(X500Principal("CN=My Remote"))
+                .setCertificateSubject(X500Principal("CN=CouchPilot"))
                 .setCertificateSerialNumber(java.math.BigInteger.valueOf(now))
                 .setCertificateNotBefore(Date(now - 86_400_000L))
                 .setCertificateNotAfter(Date(now + 20L * 365 * 86_400_000L))
@@ -114,16 +114,17 @@ internal interface GoogleTvSocketFactory {
 internal class AndroidGoogleTvSocketFactory(private val identity: AndroidClientIdentity, private val lan: com.myremote.app.network.LanNetwork) : GoogleTvSocketFactory {
     override suspend fun open(device: GoogleTvDevice, port: Int, serverPin: String?): SSLSocket = GoogleTvSocketIo.work { own ->
         val factory = identity.context(serverPin).socketFactory
-        val network = lan.selected(device.network)
-        val addresses = GoogleTvAddresses.candidates(
+        val network = lan.selected(device.network) ?: throw com.myremote.app.domain.DeviceFailure(
+            com.myremote.app.domain.FailureKind.NETWORK, "No local network")
+        val addresses = lan.localAddresses(network, GoogleTvAddresses.candidates(
             device.host, device.resolvedAddresses, device.lastSuccessfulAddress,
-            resolve = { host -> (network?.getAllByName(host) ?: java.net.InetAddress.getAllByName(host)).toList() },
-        )
+            resolve = { host -> network.getAllByName(host).toList() },
+        ))
         val socket = GoogleTvAddresses.firstConnected(addresses) { address ->
             val candidate = factory.createSocket() as SSLSocket
             own(candidate)
             try {
-                network?.bindSocket(candidate)
+                network.bindSocket(candidate)
                 candidate.soTimeout = 15_000
                 candidate.connect(java.net.InetSocketAddress(address, port), 8_000)
                 candidate

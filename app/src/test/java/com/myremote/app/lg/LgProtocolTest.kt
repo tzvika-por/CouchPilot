@@ -130,12 +130,12 @@ class LgProtocolTest {
     }
 
     @Test fun wakePacketAndReconnectDelaysAreDeterministic() {
-        val configured = LgInstallation.forSelectedDevice(LgDevice("LG TV", "192.0.2.8", uuid = "uuid:00000000-0000-4000-8000-000000000001"))
-        assertEquals(listOf("02:00:00:00:00:03", "02:00:00:00:00:01"), configured.wakeMacs)
-        val packet = LgWakeOnLan.packet("02:00:00:00:00:03")
+        val configured = LgDevice("LG TV", "192.0.2.8", uuid = "uuid:00000000-0000-4000-8000-000000000001")
+        assertTrue(configured.wakeMacs.isEmpty())
+        val packet = LgWakeOnLan.packet("02:00:00:00:00:01")
         assertEquals(102, packet.size)
         assertArrayEquals(ByteArray(6) { 0xff.toByte() }, packet.copyOfRange(0, 6))
-        val address = byteArrayOf(0x78, 0x5d, 0xc8.toByte(), 0xbd.toByte(), 0xd6.toByte(), 0x2f)
+        val address = byteArrayOf(0x02, 0, 0, 0, 0, 1)
         repeat(16) { index -> assertArrayEquals(address, packet.copyOfRange(6 + index * 6, 12 + index * 6)) }
         assertEquals(5_000L, LgReconnect.delayMillis(1))
         assertEquals(60_000L, LgReconnect.delayMillis(20))

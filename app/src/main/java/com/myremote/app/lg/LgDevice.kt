@@ -16,19 +16,6 @@ internal data class LgSavedDevice(
     val authorizationNeedsRefresh: Boolean = false,
 )
 
-/** Installation-specific configuration, kept outside reusable protocol and Wake-on-LAN code. */
-internal object LgInstallation {
-    private val targetWakeMacs = listOf("02:00:00:00:00:03", "02:00:00:00:00:01")
-
-    // The recorded UUID identifies this installation; model alone does not identify an individual TV.
-    private const val targetUuid = "00000000-0000-4000-8000-000000000001"
-    fun forSelectedDevice(device: LgDevice): LgDevice = device.copy(
-        wakeMacs = device.wakeMacs.ifEmpty {
-            if (normalizedLgUuid(device.uuid) == targetUuid) targetWakeMacs else emptyList()
-        },
-    )
-}
-
 internal fun normalizedLgUuid(value: String?): String? = value?.trim()?.lowercase()
     ?.removePrefix("uuid:")?.takeIf(String::isNotBlank)
 
@@ -37,6 +24,14 @@ internal class LgPairingStore(private val prefs: SharedPreferences, private val 
     constructor(context: Context) : this(
         context.applicationContext.getSharedPreferences("lg_webos_pairing", Context.MODE_PRIVATE), LgCredentialCipher.android(),
     )
+
+    /** Startup status needs no decryption, key generation or synchronous migration. */
+    @Synchronized fun configurationState(): com.myremote.app.domain.ConnectionState = when {
+        prefs.getBoolean("authorization_refresh_required", false) -> com.myremote.app.domain.ConnectionState.AUTHORIZATION_REQUIRED
+        prefs.getString("host", null) == null ||
+            (!prefs.contains("client_key_encrypted") && !prefs.contains("client_key")) -> com.myremote.app.domain.ConnectionState.NOT_CONFIGURED
+        else -> com.myremote.app.domain.ConnectionState.DISCONNECTED
+    }
 
     @Synchronized fun read(): LgSavedDevice? {
         val host = prefs.getString("host", null) ?: return null
@@ -62,15 +57,15 @@ internal class LgPairingStore(private val prefs: SharedPreferences, private val 
             null
         }
         val device = LgDevice(name, host, prefs.getString("model", null), prefs.getString("uuid", null), macs)
-        val migrated = LgInstallation.forSelectedDevice(device)
-        if (migrated.wakeMacs != macs) {
-            check(prefs.edit().putString("wake_macs", migrated.wakeMacs.joinToString(",")).commit()) {
-                "Could not save LG wake configuration"
-            }
-        }
-        return LgSavedDevice(migrated,
+        return LgSavedDevice(device,
             key, prefs.getString("certificate_pin", null),
             credentialUnavailable || prefs.getBoolean("authorization_refresh_required", false))
+    }
+
+    @Synchronized fun configureWakeAddress(address: String) {
+        val saved = read() ?: error("Select the TV first")
+        LgWakeOnLan.packet(address) // Validate before modifying the existing grant or metadata.
+        selectOrUpdate(saved.device.copy(wakeMacs = listOf(address.uppercase().replace('-', ':'))))
     }
 
     private fun deviceEditor(device: LgDevice): SharedPreferences.Editor = prefs.edit()
@@ -79,7 +74,7 @@ internal class LgPairingStore(private val prefs: SharedPreferences, private val 
         .putString("wake_macs", device.wakeMacs.joinToString(","))
 
     @Synchronized fun select(device: LgDevice) {
-        check(deviceEditor(LgInstallation.forSelectedDevice(device))
+        check(deviceEditor(device)
             .remove("client_key").remove("client_key_encrypted").remove("certificate_pin").remove("authorization_revision")
             .remove("authorization_refresh_required").commit()) { "Could not save LG device" }
     }
@@ -93,7 +88,7 @@ internal class LgPairingStore(private val prefs: SharedPreferences, private val 
         val conflictingIdentity = previousUuid != null && incomingUuid != null && previousUuid != incomingUuid
         val sameIdentity = previousUuid != null && previousUuid == incomingUuid
         val sameHost = existing?.host?.equals(device.host, ignoreCase = true) == true
-        if (sameHost && conflictingIdentity && saved?.certificatePin != null) {
+        if (sameHost && conflictingIdentity && saved.certificatePin != null) {
             // Unauthenticated discovery must never discard an existing endpoint's trust anchor.
             throw com.myremote.app.domain.DeviceFailure(com.myremote.app.domain.FailureKind.SECURITY,
                 "LG identity changed; forget the old device before trusting a replacement")
@@ -102,11 +97,11 @@ internal class LgPairingStore(private val prefs: SharedPreferences, private val 
             select(device)
             return
         }
-        val merged = LgInstallation.forSelectedDevice(device.copy(
+        val merged = device.copy(
             model = device.model ?: existing.model,
             uuid = device.uuid ?: existing.uuid,
             wakeMacs = device.wakeMacs.ifEmpty { existing.wakeMacs },
-        ))
+        )
         check(deviceEditor(merged).commit()) { "Could not update LG device" }
     }
 

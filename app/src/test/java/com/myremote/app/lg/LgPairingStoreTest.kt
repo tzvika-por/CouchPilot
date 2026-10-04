@@ -9,7 +9,7 @@ class LgPairingStoreTest {
     @Test fun clientKeyPinAndWakeConfigurationSurviveStoreRecreation() {
         val preferences = MemoryPreferences()
         val device = LgDevice("Living room", "192.0.2.8", "55UK6700YVD", "uuid:lg",
-            listOf("02:00:00:00:00:03"))
+            listOf("02:00:00:00:00:01"))
         LgPairingStore(preferences, testLgCipher()).apply {
             select(device)
             assertNull(read()?.clientKey)
@@ -27,7 +27,7 @@ class LgPairingStoreTest {
 
     @Test fun authorizationResetKeepsDevicePinAndUnrelatedPreferences() {
         val prefs = MemoryPreferences()
-        val device = LgInstallation.forSelectedDevice(LgDevice("LG", "192.0.2.8"))
+        val device = LgDevice("LG", "192.0.2.8")
         val store = LgPairingStore(prefs, testLgCipher())
         store.select(device)
         store.registered("old-key", "trusted-pin")
@@ -63,12 +63,12 @@ class LgPairingStoreTest {
     }
 
     private val targetUuid = "00000000-0000-4000-8000-000000000001"
-    private val targetMacs = listOf("02:00:00:00:00:03", "02:00:00:00:00:01")
+    private val targetMacs = listOf("02:00:00:00:00:01", "02:00:00:00:00:02")
 
-    @Test fun legacyWakeMigrationPersistsWithoutRevokingGrantPinOrRefreshState() {
+    @Test fun storedWakeConfigurationSurvivesCredentialMigrationWithoutRevokingTrust() {
         val prefs = MemoryPreferences()
         prefs.edit().putString("host", "192.0.2.8").putString("name", "LG")
-            .putString("uuid", "UUID:" + targetUuid.uppercase()).putString("client_key", "saved-key")
+            .putString("uuid", "UUID:" + targetUuid.uppercase()).putString("wake_macs", targetMacs.joinToString(",")).putString("client_key", "saved-key")
             .putString("certificate_pin", "saved-pin").putInt("authorization_revision", 1)
             .putBoolean("authorization_refresh_required", true).putString("unrelated", "keep").commit()
         val store = LgPairingStore(prefs, testLgCipher())
@@ -87,7 +87,7 @@ class LgPairingStoreTest {
         val store = LgPairingStore(prefs, testLgCipher())
         store.select(LgDevice("Manual LG", "192.0.2.8"))
         store.registered("saved-key", "saved-pin")
-        store.selectOrUpdate(LgDevice("Living room", "192.0.2.8", "55UK6700YVD", "uuid:$targetUuid"))
+        store.selectOrUpdate(LgDevice("Living room", "192.0.2.8", "55UK6700YVD", "uuid:$targetUuid", wakeMacs = targetMacs))
         assertEquals(targetMacs, store.read()!!.device.wakeMacs)
         assertEquals("Living room", store.read()!!.device.name)
         assertEquals("saved-key", store.read()!!.clientKey)
@@ -110,7 +110,7 @@ class LgPairingStoreTest {
 
     @Test fun conflictingDiscoveryAtPinnedAddressRetainsTrustUntilExplicitForget() {
         val store = LgPairingStore(MemoryPreferences(), testLgCipher())
-        store.select(LgDevice("LG", "192.0.2.8", uuid=targetUuid))
+        store.select(LgDevice("LG", "192.0.2.8", uuid=targetUuid, wakeMacs=targetMacs))
         store.registered("saved-key", "saved-pin")
         val replacement = LgDevice("Other", "192.0.2.8", "55UK6700YVD", "other-uuid")
         org.junit.Assert.assertThrows(com.myremote.app.domain.DeviceFailure::class.java) { store.selectOrUpdate(replacement) }
@@ -136,7 +136,7 @@ class LgPairingStoreTest {
 
     @Test fun authenticatedIdentityRequiresCurrentCertificateAndPreservesGrant() {
         val store = LgPairingStore(MemoryPreferences(), testLgCipher())
-        store.select(LgDevice("LG", "lg.local"))
+        store.select(LgDevice("LG", "lg.local", wakeMacs=targetMacs))
         store.registered("saved-key", "saved-pin")
         try { store.learnedIdentity(targetUuid, "different-pin"); org.junit.Assert.fail("Wrong TLS peer") }
         catch (_: IllegalStateException) { }
@@ -147,6 +147,23 @@ class LgPairingStoreTest {
         try { store.learnedIdentity("different-uuid", "saved-pin"); org.junit.Assert.fail("Changed identity") }
         catch (_: IllegalStateException) { }
         assertEquals(targetUuid, store.read()!!.device.uuid)
+    }
+
+    @Test fun explicitWakeConfigurationPreservesGrantAndPin() {
+        val store = LgPairingStore(MemoryPreferences(), testLgCipher())
+        store.select(LgDevice("LG", "tv.local")); store.registered("synthetic-key", "synthetic-pin")
+        store.configureWakeAddress("02-00-00-00-00-01")
+        assertEquals(listOf("02:00:00:00:00:01"), store.read()!!.device.wakeMacs)
+        assertEquals("synthetic-key", store.read()!!.clientKey)
+        assertEquals("synthetic-pin", store.read()!!.certificatePin)
+    }
+
+    @Test fun malformedWakeAddressCannotModifyExistingConfiguration() {
+        val store = LgPairingStore(MemoryPreferences(), testLgCipher())
+        store.select(LgDevice("LG", "tv.local", wakeMacs=targetMacs)); store.registered("key", "pin")
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { store.configureWakeAddress("not-a-mac") }
+        assertEquals(targetMacs, store.read()!!.device.wakeMacs)
+        assertEquals("key", store.read()!!.clientKey)
     }
 
     internal class MemoryPreferences : SharedPreferences {

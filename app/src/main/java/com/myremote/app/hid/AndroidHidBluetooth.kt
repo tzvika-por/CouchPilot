@@ -62,7 +62,7 @@ class AndroidHidBluetooth(private val context: Context) {
         private val closed = AtomicBoolean()
         private val lifetime = Any()
         private val executor = Executors.newSingleThreadExecutor()
-        private val eventsChannel = Channel<HidEvent>(Channel.UNLIMITED)
+        private val eventsChannel = Channel<HidEvent>(Channel.CONFLATED)
         override val events = eventsChannel.receiveAsFlow()
         val registration = CompletableDeferred<Unit>()
         @Volatile private var profile: BluetoothHidDevice? = null
@@ -193,7 +193,7 @@ class AndroidHidBluetooth(private val context: Context) {
                 if (closed.get()) { adapter.closeProfileProxy(kind, proxy); return@synchronized }
                 val hid = proxy as BluetoothHidDevice
                 profile = hid
-                val sdp = BluetoothHidDeviceAppSdpSettings("My Remote", "TV remote", "My Remote", BluetoothHidDevice.SUBCLASS1_KEYBOARD, HidProtocol.descriptor)
+                val sdp = BluetoothHidDeviceAppSdpSettings("CouchPilot", "TV remote", "CouchPilot", BluetoothHidDevice.SUBCLASS1_KEYBOARD, HidProtocol.descriptor)
                 try {
                     val sent = hid.registerApp(sdp, null, null, { task ->
                         if (!closed.get()) runCatching { executor.execute {

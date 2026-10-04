@@ -93,7 +93,7 @@ class GoogleTvSessionIntegrationTest {
             fragmented(socket, hex("080210c801ca02220a20") + hash)
         }) { socket, client, server ->
             val handshake = PairingHandshake()
-            ProtoWire.writeFrame(socket.outputStream, handshake.request("My Remote"))
+            ProtoWire.writeFrame(socket.outputStream, handshake.request("CouchPilot"))
             repeat(3) { handshake.accept(GoogleTvSocketIo.readFrame(socket)!!)?.let { ProtoWire.writeFrame(socket.outputStream, it) } }
             assertEquals(PairingHandshake.Step.CODE_REQUIRED, handshake.step)
             val hash = independentSecret(client, server)
@@ -122,7 +122,7 @@ class GoogleTvSessionIntegrationTest {
         server: (SSLSocket, HeldCertificate, HeldCertificate) -> Unit,
         client: suspend CoroutineScope.(SSLSocket, HeldCertificate, HeldCertificate) -> Unit,
     ) = coroutineScope {
-        val clientCertificate = HeldCertificate.Builder().rsa2048().commonName("MyRemote simulator client").build()
+        val clientCertificate = HeldCertificate.Builder().rsa2048().commonName("CouchPilot simulator client").build()
         val serverCertificate = HeldCertificate.Builder().rsa2048().commonName("Google TV simulator").build()
         val serverTls = HandshakeCertificates.Builder().heldCertificate(serverCertificate).addTrustedCertificate(clientCertificate.certificate).build()
         val clientTls = HandshakeCertificates.Builder().heldCertificate(clientCertificate).build()

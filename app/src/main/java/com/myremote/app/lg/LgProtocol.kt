@@ -34,7 +34,7 @@ internal object LgProtocol {
 
     fun hello(id: String): String = JSONObject()
         .put("type", "hello").put("id", id)
-        .put("payload", JSONObject().put("appId", "com.myremote.app").put("appName", "My Remote"))
+        .put("payload", JSONObject().put("appId", "com.myremote.app").put("appName", "CouchPilot"))
         .toString()
 
     fun register(id: String, clientKey: String?): String {

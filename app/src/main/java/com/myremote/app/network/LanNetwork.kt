@@ -21,6 +21,13 @@ class LanNetwork(context: Context) {
             ?: manager.allNetworks.firstOrNull(::usable)
     }
 
+    fun localAddresses(network: Network, addresses: List<InetAddress>): List<InetAddress> {
+        val prefixes = manager.getLinkProperties(network)?.linkAddresses.orEmpty().map { it.address to it.prefixLength }
+        return addresses.filter { LocalAddressPolicy.accepts(it, prefixes) }.takeIf { it.isNotEmpty() }
+            ?: throw com.myremote.app.domain.DeviceFailure(com.myremote.app.domain.FailureKind.NETWORK,
+                "No local device address on the selected LAN")
+    }
+
     fun ipv4(network: Network): Pair<Inet4Address, Inet4Address>? =
         manager.getLinkProperties(network)?.linkAddresses?.firstNotNullOfOrNull { link ->
             val address = link.address as? Inet4Address ?: return@firstNotNullOfOrNull null

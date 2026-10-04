@@ -67,7 +67,7 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
         _devices.value = emptyList()
         _error.value = null
         val runId = ++generation
-        val ownedLock = wifi.createMulticastLock("MyRemoteLgDiscovery").apply {
+        val ownedLock = wifi.createMulticastLock("CouchPilotLgDiscovery").apply {
             setReferenceCounted(false)
         }
         lock = ownedLock
@@ -86,8 +86,8 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
                         if (generation != runId) return@launch
                         socket = active
                     }
-                    val network = lan.selected()
-                    network?.bindSocket(active)
+                    val network = lan.selected() ?: throw java.io.IOException("No local network for LG discovery")
+                    network.bindSocket(active)
                     active.soTimeout = 700
                     active.broadcast = true
                     val bytes = LgSsdp.search.toByteArray(Charsets.UTF_8)
@@ -100,6 +100,7 @@ class SsdpLgDiscovery(context: Context) : LgDiscovery, AutoCloseable {
                     while (System.nanoTime() < deadline && !active.isClosed && kotlinx.coroutines.currentCoroutineContext().isActive) {
                         val reply = DatagramPacket(buffer, buffer.size)
                         try { active.receive(reply) } catch (_: java.net.SocketTimeoutException) { continue }
+                        if (runCatching { lan.localAddresses(network, listOf(reply.address)) }.isFailure) continue
                         val response = String(reply.data, 0, reply.length, Charsets.UTF_8)
                         val base = LgSsdp.candidate(response, reply.address) ?: continue
                         if (!seen.add(base.host)) continue

@@ -145,13 +145,13 @@ class LgAuthorizationTest {
 
     private val targetUuid = "00000000-0000-4000-8000-000000000001"
 
-    @Test fun secureHelloCompletesLegacyManualWakeSetupWithoutApproval() = runTest {
+    @Test fun secureHelloLearnsIdentityWithoutInventingWakeAddresses() = runTest {
         val fixture = fixture(helloUuid = targetUuid)
         fixture.preferences.edit().remove("wake_macs").remove("uuid").commit()
         fixture.controller.connectStored(); runCurrent()
         assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
         assertEquals(targetUuid, fixture.store.read()!!.device.uuid)
-        assertEquals(2, fixture.store.read()!!.device.wakeMacs.size)
+        assertEquals(0, fixture.store.read()!!.device.wakeMacs.size)
         assertEquals("trusted-pin", fixture.store.read()!!.certificatePin)
         val registration = JSONObject(fixture.transports.single().sent.first { JSONObject(it).getString("type") == "register" })
         assertEquals("old-key", registration.getJSONObject("payload").getString("client-key"))
@@ -175,7 +175,7 @@ class LgAuthorizationTest {
     @Test fun reselectingSameHostSavesWakeMetadataAndReusesKey() = runTest {
         val fixture = fixture()
         fixture.preferences.edit().remove("wake_macs").remove("uuid").commit()
-        fixture.controller.select(LgDevice("Living room", "192.0.2.8", uuid = "uuid:$targetUuid")); runCurrent()
+        fixture.controller.select(LgDevice("Living room", "192.0.2.8", uuid = "uuid:$targetUuid", wakeMacs = listOf("02:00:00:00:00:01", "02:00:00:00:00:02"))); runCurrent()
         assertEquals(2, fixture.store.read()!!.device.wakeMacs.size)
         val registration = JSONObject(fixture.transports.single().sent.first { JSONObject(it).getString("type") == "register" })
         assertEquals("old-key", registration.getJSONObject("payload").getString("client-key"))
@@ -185,12 +185,12 @@ class LgAuthorizationTest {
     @Test fun wakeUsesRecoveredManualConfigurationAndRequiresRegisteredConnection() = runTest {
         val wakes = mutableListOf<LgDevice>()
         val fixture = fixture(helloUuid = targetUuid, wakeAction = { wakes += it })
-        fixture.preferences.edit().remove("wake_macs").commit()
+        fixture.preferences.edit().remove("uuid").commit()
         fixture.controller.connectStored(); runCurrent()
         fixture.controller.powerOff(); runCurrent()
         val power = async { fixture.controller.powerOn() }
         runCurrent(); advanceTimeBy(251); runCurrent(); power.await()
-        assertEquals(2, wakes.single().wakeMacs.size)
+        assertEquals(1, wakes.single().wakeMacs.size)
         assertEquals(ConnectionState.CONNECTED, fixture.controller.connectionState)
         assertEquals(2, fixture.transports.size)
         assertEquals(listOf("trusted-pin", "trusted-pin"), fixture.expectedPins)
@@ -241,7 +241,7 @@ class LgAuthorizationTest {
     private fun TestScope.fixture(deniedUri: String? = null, pauseRegistration: Boolean = false, inputAppId: String? = null, helloUuid: String? = null, wakeAction: suspend (LgDevice) -> Unit = {}): Fixture {
         val prefs = LgPairingStoreTest.MemoryPreferences()
         val store = LgPairingStore(prefs, testLgCipher())
-        store.select(LgDevice("LG", "192.0.2.8", wakeMacs = listOf("02:00:00:00:00:03")))
+        store.select(LgDevice("LG", "192.0.2.8", wakeMacs = listOf("02:00:00:00:00:01")))
         store.registered("old-key", "trusted-pin")
         val transports = mutableListOf<ScriptedTransport>()
         val pins = mutableListOf<String?>()

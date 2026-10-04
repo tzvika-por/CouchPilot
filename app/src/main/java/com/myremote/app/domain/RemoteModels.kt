@@ -24,6 +24,7 @@ enum class RemoteKey {
 enum class PressKind { SHORT, LONG }
 
 sealed interface RemoteAction {
+    data object TvPower : RemoteAction
     data object Power : RemoteAction
     data object StreamerOff : RemoteAction
     data object SoundbarPower : RemoteAction
@@ -39,6 +40,8 @@ sealed interface RemoteAction {
 }
 
 data class RemoteState(
+    val failureDevice: CommandDevice? = null,
+    val busyDevices: Set<CommandDevice> = emptySet(),
     val activeDevice: ActiveDevice = ActiveDevice.TV,
     val selectedInput: InputSource? = null,
     val tvConnection: ConnectionState = ConnectionState.DISCONNECTED,

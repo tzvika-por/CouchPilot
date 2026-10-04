@@ -50,12 +50,17 @@ class LgTvController internal constructor(
     @Volatile private var session: LgSsapSession? = null
     @Volatile private var inputs: List<LgInput> = emptyList()
 
-    private fun savedState(): ConnectionState {
-        val saved = store.read()
-        return when {
-            saved?.authorizationNeedsRefresh == true -> ConnectionState.AUTHORIZATION_REQUIRED
-            saved?.clientKey == null -> ConnectionState.NOT_CONFIGURED
-            else -> ConnectionState.DISCONNECTED
+    private fun savedState(): ConnectionState = store.configurationState()
+    private val storageDispatcher = scope.coroutineContext[kotlin.coroutines.ContinuationInterceptor]
+        as kotlinx.coroutines.CoroutineDispatcher
+
+    fun configureWakeAddress(address: String) {
+        scope.launch {
+            try { store.configureWakeAddress(address); _error.value = null }
+            catch (error: Exception) {
+                if (error is CancellationException) throw error
+                _error.value = "Wake address could not be saved"
+            }
         }
     }
 
@@ -77,17 +82,9 @@ class LgTvController internal constructor(
         connectSelected(retry = false, selected = device)
     }
 
-    fun connectStored() {
-        if (store.read()?.clientKey != null) connectSelected(retry = true)
-    }
+    fun connectStored() { connectSelected(retry = true, storedOnly = true) }
 
-    fun retry() {
-        if (store.read() == null) {
-            _state.value = ConnectionState.NOT_CONFIGURED
-            return
-        }
-        connectSelected(retry = store.read()?.clientKey != null)
-    }
+    fun retry() { connectSelected(retry = true) }
 
     /** Explicit user action: retire the old grant, then request TV approval without its key. */
     fun refreshAuthorization() {
@@ -95,7 +92,7 @@ class LgTvController internal constructor(
         connectSelected(retry = false, refreshAuthorization = true)
     }
 
-    private fun connectSelected(retry: Boolean, refreshAuthorization: Boolean = false, selected: LgDevice? = null) {
+    private fun connectSelected(retry: Boolean, refreshAuthorization: Boolean = false, selected: LgDevice? = null, storedOnly: Boolean = false) {
         deliberateOff = false
         val previous = connectionJob
         previous?.cancel()
@@ -122,6 +119,8 @@ class LgTvController internal constructor(
                 _state.value = ConnectionState.AUTHORIZATION_REQUIRED
                 return@launch
             }
+            if (storedOnly && saved.clientKey == null) { _state.value = ConnectionState.NOT_CONFIGURED; return@launch }
+            val mayRetry = retry && saved.clientKey != null
             var failures = 0
             var pairing = saved
             while (isActive) {
@@ -164,7 +163,7 @@ class LgTvController internal constructor(
                         _state.value = ConnectionState.AUTHORIZATION_REQUIRED
                     } else {
                         _error.value = error.message ?: "LG connection failed"
-                        _state.value = if (terminalFailure || (!retry && pairing.clientKey == null)) ConnectionState.ERROR
+                        _state.value = if (terminalFailure || (!mayRetry && pairing.clientKey == null)) ConnectionState.ERROR
                             else ConnectionState.DISCONNECTED
                     }
                 } finally {
@@ -172,7 +171,7 @@ class LgTvController internal constructor(
                     inputs = emptyList()
                     current?.close()
                 }
-                if (deliberateOff || terminalFailure || (!retry && pairing.clientKey == null)) break
+                if (deliberateOff || terminalFailure || (!mayRetry && pairing.clientKey == null)) break
                 failures++
                 delay(LgReconnect.delayMillis(failures))
             }
@@ -210,14 +209,17 @@ class LgTvController internal constructor(
     }
 
     override suspend fun powerOff() {
+        val active = session
         controlRequest(LgProtocol.TURN_OFF)
-        deliberateOff = true
-        session?.close()
-        _state.value = ConnectionState.DISCONNECTED
+        if (session === active) {
+            deliberateOff = true
+            active?.close()
+            _state.value = ConnectionState.DISCONNECTED
+        }
     }
 
     override suspend fun powerOn() {
-        val device = store.read()?.device ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "Set up the LG TV first")
+        val device = withContext(storageDispatcher) { store.read()?.device } ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "Set up the LG TV first")
         if (device.wakeMacs.isEmpty() || device.wakeMacs.any { runCatching { LgWakeOnLan.packet(it) }.isFailure }) {
             RemoteDiagnostics.record("lg", "wake", "missing_configuration")
             throw DeviceFailure(FailureKind.WAKE_NOT_CONFIGURED, "LG wake address is missing or invalid")
@@ -232,6 +234,7 @@ class LgTvController internal constructor(
             // UDP send is not wake proof. Keep reconnection bounded and cancel it on failure.
             withTimeout(45_000) {
                 while (_state.value != ConnectionState.CONNECTED) {
+                    if (connectionJob !== ownedJob) throw CancellationException("LG wake superseded")
                     if (_state.value == ConnectionState.AUTHORIZATION_REQUIRED)
                         throw DeviceFailure(FailureKind.PERMISSION_DENIED, "LG wake requires authorization")
                     if (_state.value == ConnectionState.ERROR)
@@ -239,6 +242,7 @@ class LgTvController internal constructor(
                     delay(250)
                 }
             }
+            if (connectionJob !== ownedJob) throw CancellationException("LG wake superseded")
             RemoteDiagnostics.record("lg", "wake", "connected")
         } catch (error: Exception) {
             if (connectionJob === ownedJob) {

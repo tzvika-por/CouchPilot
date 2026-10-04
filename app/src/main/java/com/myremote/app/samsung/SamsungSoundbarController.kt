@@ -47,7 +47,15 @@ class SamsungSoundbarController internal constructor(
     val error: StateFlow<FailureKind?> = _error
     private val _muted = MutableStateFlow<Boolean?>(null)
     val muted: StateFlow<Boolean?> = _muted
+    private val storageDispatcher = scope.coroutineContext[kotlin.coroutines.ContinuationInterceptor]
+        as kotlinx.coroutines.CoroutineDispatcher
+    private val ownership = Any()
+    private var generation = 0L
     private var job: Job? = null
+    private fun owns(id: Long) = synchronized(ownership) { generation == id }
+    private fun publish(id: Long, change: () -> Unit): Boolean = synchronized(ownership) {
+        if (generation != id) false else { change(); true }
+    }
     @Volatile private var session: SamsungSession? = null
 
     @Volatile private var connectionSuspended = loadSuspended()
@@ -64,19 +72,19 @@ class SamsungSoundbarController internal constructor(
 
     fun retry() = connect(retryBeforeConnected = true)
 
-    private fun connect(retryBeforeConnected: Boolean, initialAttemptLimit: Int = 1) {
+    private fun connect(retryBeforeConnected: Boolean, initialAttemptLimit: Int = 1) = synchronized(ownership) {
         saveSuspended(false)
         connectionSuspended = false
         disconnect()
-        val address = load() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return }
+        val address = load() ?: run { _state.value = ConnectionState.NOT_CONFIGURED; return@synchronized }
+        val owner = generation
         _error.value = null
         _state.value = ConnectionState.CONNECTING
-        job = scope.launch {
+        job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             var failures = 0
             var canRetry = retryBeforeConnected
-            while (isActive && !connectionSuspended) {
-                _muted.value = null
-                _state.value = ConnectionState.CONNECTING
+            while (isActive && owns(owner) && !connectionSuspended) {
+                publish(owner) { _muted.value = null; _state.value = ConnectionState.CONNECTING }
                 var active: SamsungSession? = null
                 try {
                     suspend fun initialize() {
@@ -84,16 +92,13 @@ class SamsungSoundbarController internal constructor(
                         // Publish before initialize so cancellation closes blocking Bluetooth reads.
                         val initialized = SamsungSession(transport, scope)
                         active = initialized
-                        if (!isActive) { initialized.close(); return }
-                        session = initialized
+                        if (!isActive || !publish(owner) { session = initialized }) { initialized.close(); throw CancellationException("Superseded Samsung attempt") }
                         initialized.initialize()
                     }
                     if (initialAttemptLimit > 1 && !canRetry) {
                         kotlinx.coroutines.withTimeout(15_000) { initialize() }
                     } else initialize()
-                    if (!isActive) break
-                    _error.value = null
-                    _state.value = ConnectionState.CONNECTED
+                    if (!isActive || !publish(owner) { _error.value = null; _state.value = ConnectionState.CONNECTED }) break
                     failures = 0
                     canRetry = true
                     RemoteDiagnostics.record("samsung", "connection", "connected")
@@ -101,69 +106,74 @@ class SamsungSoundbarController internal constructor(
                     throw IOException("Samsung connection closed")
                 } catch (error: Exception) {
                     if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) throw error
-                    if (!isActive) break
-                    if (connectionSuspended) { _state.value = ConnectionState.DISCONNECTED; break }
-                    _error.value = com.myremote.app.domain.failureKind(error)
-                    _state.value = ConnectionState.DISCONNECTED
+                    if (!isActive || !owns(owner)) break
+                    if (connectionSuspended) { publish(owner) { _state.value = ConnectionState.DISCONNECTED }; break }
+                    val kind = com.myremote.app.domain.failureKind(error)
+                    if (!publish(owner) { _error.value = kind; _state.value = ConnectionState.DISCONNECTED }) break
                     RemoteDiagnostics.record("samsung", "connection", "failed")
-                    val terminal = _error.value in setOf(FailureKind.PERMISSION_DENIED,
+                    val terminal = kind in setOf(FailureKind.PERMISSION_DENIED,
                         FailureKind.UNAVAILABLE, FailureKind.NOT_CONNECTED, FailureKind.SECURITY)
                     if (terminal || (!canRetry && failures + 1 >= initialAttemptLimit)) {
                         if (initialAttemptLimit > 1 && !canRetry) {
                             // A failed external-wake recovery must not enable background wake loops.
-                            saveSuspended(true)
-                            connectionSuspended = true
+                            publish(owner) { saveSuspended(true); connectionSuspended = true }
                         }
                         break
                     }
                 } finally {
                     active?.close()
-                    if (session === active) session = null
+                    publish(owner) { if (session === active) session = null }
                 }
                 delay(reconnectDelay(++failures))
             }
-        }
+        }.also { it.start() }
     }
 
-    private suspend fun command(operation: String, action: suspend (SamsungSession) -> Unit) {
+    private suspend fun command(operation: String, action: suspend (SamsungSession, Long) -> Unit) = kotlinx.coroutines.withContext(storageDispatcher) {
         // Optical Auto Power Link can wake the bar while post-Off reconnect remains suspended.
         // A new sound-button intention may restore control, but never replay a power toggle.
         if (session == null || connectionState != ConnectionState.CONNECTED) attemptWake()
-        val active = session?.takeIf { connectionState == ConnectionState.CONNECTED }
+        val owner = synchronized(ownership) { generation }
+        val active = session?.takeIf { connectionState == ConnectionState.CONNECTED && owns(owner) }
             ?: throw DeviceFailure(FailureKind.NOT_CONNECTED, "Samsung soundbar is not connected")
-        try { action(active); RemoteDiagnostics.record("samsung", operation, "status_received") }
+        try { action(active, owner); RemoteDiagnostics.record("samsung", operation, "status_received") }
         catch (error: Exception) {
             if (error !is CancellationException) {
                 active.close()
-                _muted.value = null
-                _state.value = ConnectionState.DISCONNECTED
-                _error.value = com.myremote.app.domain.failureKind(error)
+                publish(owner) {
+                    _muted.value = null
+                    _state.value = ConnectionState.DISCONNECTED
+                    _error.value = com.myremote.app.domain.failureKind(error)
+                }
                 RemoteDiagnostics.record("samsung", operation, "failed")
             }
             throw error
         }
     }
     // A volume change may also clear mute. Without a fresh mute response the state is unknown.
-    override suspend fun volumeUp() = command("volume_up") { _muted.value = null; it.volumeUp() }
-    override suspend fun volumeDown() = command("volume_down") { _muted.value = null; it.volumeDown() }
-    override suspend fun mute() = command("mute") { _muted.value = it.mute() }
+    override suspend fun volumeUp() = command("volume_up") { active, owner -> publish(owner) { _muted.value = null }; active.volumeUp() }
+    override suspend fun volumeDown() = command("volume_down") { active, owner -> publish(owner) { _muted.value = null }; active.volumeDown() }
+    override suspend fun mute() = command("mute") { active, owner -> val value = active.mute(); publish(owner) { _muted.value = value } }
 
-    override suspend fun togglePower() {
+    override suspend fun togglePower() = kotlinx.coroutines.withContext(storageDispatcher) {
         val active = session?.takeIf { connectionState == ConnectionState.CONNECTED }
         if (active == null) {
             attemptWake()
-            return
+            return@withContext
         }
         // Persist before writing: even a failed/cancelled write can have reached the device.
         // Never replay a toggle or reconnect automatically after an uncertain outcome.
-        val connectionJob = job
-        saveSuspended(true)
-        connectionSuspended = true
+        val owner = synchronized(ownership) {
+            if (session !== active) throw CancellationException("Superseded Samsung command")
+            saveSuspended(true)
+            connectionSuspended = true
+            generation
+        }
         try {
             active.togglePower()
             RemoteDiagnostics.record("samsung", "power_toggle", "sent")
         } finally {
-            if (job === connectionJob) disconnect() else active.close()
+            synchronized(ownership) { if (owns(owner)) disconnect() else active.close() }
         }
     }
 
@@ -171,13 +181,14 @@ class SamsungSoundbarController internal constructor(
     private suspend fun attemptWake() {
         if (load() == null) throw DeviceFailure(FailureKind.NOT_CONNECTED, "Set up the soundbar first")
         connect(retryBeforeConnected = false)
-        val ownedJob = job
+        val owner = synchronized(ownership) { generation }
         try {
             kotlinx.coroutines.withTimeout(15_000) {
                 state.first {
                     it == ConnectionState.CONNECTED || (it == ConnectionState.DISCONNECTED && _error.value != null)
                 }
             }
+            if (!owns(owner)) throw CancellationException("Superseded Samsung wake")
             if (connectionState != ConnectionState.CONNECTED) {
                 val kind = _error.value
                 throw DeviceFailure(if (kind in setOf(FailureKind.PERMISSION_DENIED, FailureKind.UNAVAILABLE,
@@ -186,7 +197,7 @@ class SamsungSoundbarController internal constructor(
             }
             RemoteDiagnostics.record("samsung", "wake", "connected")
         } catch (error: Exception) {
-            if (job === ownedJob) {
+            publish(owner) {
                 saveSuspended(true)
                 connectionSuspended = true
                 disconnect()
@@ -198,13 +209,14 @@ class SamsungSoundbarController internal constructor(
         }
     }
 
-    fun disconnect() {
+    fun disconnect() = synchronized(ownership) {
+        generation++ // Invalidate BEFORE cancellation/close can deliver a late event.
         _muted.value = null
         job?.cancel(); job = null
         session?.close(); session = null
         if (load() != null) _state.value = ConnectionState.DISCONNECTED
     }
-    fun forget() { disconnect(); save(null); _state.value = ConnectionState.NOT_CONFIGURED; _error.value = null }
+    fun forget() = synchronized(ownership) { disconnect(); save(null); _state.value = ConnectionState.NOT_CONFIGURED; _error.value = null }
     override fun close() { disconnect(); scope.cancel() }
     internal companion object { fun reconnectDelay(failures: Int): Long = (3_000L shl (failures - 1).coerceIn(0, 4)).coerceAtMost(30_000) }
 }

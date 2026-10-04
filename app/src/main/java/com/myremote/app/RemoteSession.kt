@@ -42,16 +42,28 @@ class RemoteSession(application: Application) : AutoCloseable {
     val bluetooth = SamsungBluetooth(application)
     private val _bluetoothPermission = MutableStateFlow(bluetooth.hasPermission())
     val bluetoothPermission = _bluetoothPermission.asStateFlow()
-    private val actionJobs = mutableSetOf<Job>()
     val soundbarState = soundbar.state
     val soundbarError = soundbar.error
     private val _soundbarDevices = MutableStateFlow<List<SamsungDevice>>(emptyList())
     val soundbarDevices = _soundbarDevices.asStateFlow()
     private val _soundbarSetupVisible = MutableStateFlow(false)
     val soundbarSetupVisible = _soundbarSetupVisible.asStateFlow()
-    private val coordinator = RemoteCoordinator(tv, route, soundbar)
+    private val uiPreferences = application.getSharedPreferences("remote_ui_state", android.content.Context.MODE_PRIVATE)
+    private val initialInput = uiPreferences.getString("last_input", null)?.let { name ->
+        com.myremote.app.domain.InputSource.entries.firstOrNull { it.name == name }
+    }
+    private val coordinator = RemoteCoordinator(tv, route, soundbar, initialInput)
     private val _remoteState = MutableStateFlow(coordinator.state)
     val remoteState = _remoteState.asStateFlow()
+    private val commands: com.myremote.app.domain.CommandScheduler = com.myremote.app.domain.CommandScheduler(scope, coordinator::target,
+        { action, target ->
+            _remoteState.value = coordinator.dispatch(action, target)
+            if (action is RemoteAction.SelectInput && coordinator.state.selectedInput == action.source &&
+                coordinator.state.failureDevice != com.myremote.app.domain.CommandDevice.TV) {
+                commands.sourceChanged(action.source)
+                uiPreferences.edit().putString("last_input", action.source.name).apply()
+            }
+        })
     val streamerState = kotlinx.coroutines.flow.combine(selectedConnection, streamer.state, hid.state) { mode, lan, bluetooth ->
         if (mode == com.myremote.app.hid.StreamerConnection.LAN) lan else bluetooth
     }.stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Eagerly, route.connectionState)
@@ -69,6 +81,7 @@ class RemoteSession(application: Application) : AutoCloseable {
     private var pairingJob: Job? = null
 
     init {
+        scope.launch { commands.busy.collect { _remoteState.value = coordinator.updateBusy(it) } }
         scope.launch {
             streamer.powerState.collect { on ->
                 if (on != null && selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) _remoteState.value = coordinator.updateStreamerPower(on)
@@ -119,7 +132,7 @@ class RemoteSession(application: Application) : AutoCloseable {
     }
     private fun pauseConnections() {
         pairingJob?.cancel()
-        actionJobs.toList().forEach { it.cancel() }
+        commands.cancelAll()
         streamer.pause()
         hid.pause()
         tv.pause()
@@ -127,12 +140,8 @@ class RemoteSession(application: Application) : AutoCloseable {
     }
 
     fun dispatch(action: RemoteAction) {
-        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
-            _remoteState.value = coordinator.dispatch(action)
-        }
-        actionJobs += job
-        job.invokeOnCompletion { actionJobs.remove(job) }
-        job.start()
+        if (!commands.submit(action)) _remoteState.value = coordinator.reportFailure(
+            com.myremote.app.domain.DeviceFailure(com.myremote.app.domain.FailureKind.UNAVAILABLE, "Command queue busy"))
     }
 
     fun openSetup() {
@@ -150,6 +159,7 @@ class RemoteSession(application: Application) : AutoCloseable {
     }
 
     fun beginPairing(device: GoogleTvDevice) {
+        commands.cancelDevice(com.myremote.app.domain.CommandDevice.STREAMER)
         useLanConnection(connect = false)
         pairingJob?.cancel()
         pairingJob = scope.launch { runCatching { streamer.beginPairing(device) } }
@@ -168,24 +178,27 @@ class RemoteSession(application: Application) : AutoCloseable {
         if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) streamer.retry() else hid.retry()
     }
     fun forgetPairing() {
+        commands.cancelDevice(com.myremote.app.domain.CommandDevice.STREAMER)
         if (selectedConnection.value == com.myremote.app.hid.StreamerConnection.LAN) {
             pairingJob?.cancel(); streamer.forgetPairing()
         } else hid.forget()
     }
     fun useLanConnection(connect: Boolean = true) {
+        commands.cancelDevice(com.myremote.app.domain.CommandDevice.STREAMER)
         hid.pause()
         hidStore.mode(com.myremote.app.hid.StreamerConnection.LAN)
         selectedConnection.value = com.myremote.app.hid.StreamerConnection.LAN
         if (connect) { streamer.connectStored(); if (_setupVisible.value) streamer.startDiscovery() }
     }
     fun useBluetoothConnection() {
+        commands.cancelDevice(com.myremote.app.domain.CommandDevice.STREAMER)
         pairingJob?.cancel(); streamer.pause()
         hidStore.mode(com.myremote.app.hid.StreamerConnection.BLUETOOTH)
         selectedConnection.value = com.myremote.app.hid.StreamerConnection.BLUETOOTH
         refreshHidHosts()
-        if (hidStore.host() == null) hid.select(com.myremote.app.hid.XiaomiInstallation.observedHost) else hid.retry()
+        if (hidStore.host() != null) hid.retry()
     }
-    fun selectHidHost(host: com.myremote.app.hid.HidHost) { hid.select(host) }
+    fun selectHidHost(host: com.myremote.app.hid.HidHost) { commands.cancelDevice(com.myremote.app.domain.CommandDevice.STREAMER); hid.select(host) }
     fun refreshHidHosts() {
         _bluetoothPermission.value = bluetooth.hasPermission()
         mutableHidHosts.value = runCatching { hidBluetooth.pairedHosts() }.getOrDefault(emptyList())
@@ -202,16 +215,18 @@ class RemoteSession(application: Application) : AutoCloseable {
         _lgSetupVisible.value = false
     }
 
-    fun selectLg(device: LgDevice) = tv.select(device)
+    fun selectLg(device: LgDevice) { commands.cancelDevice(com.myremote.app.domain.CommandDevice.TV); tv.select(device) }
 
     fun manualLg(host: String) {
         val cleaned = normalizedLgHost(host) ?: return
-        tv.select(LgDevice("LG TV", cleaned))
+        selectLg(LgDevice("LG TV", cleaned))
     }
 
+    fun configureLgWake(address: String) = tv.configureWakeAddress(address)
+
     fun retryLg() = tv.retry()
-    fun forgetLg() = tv.forgetPairing()
-    fun refreshLgAuthorization() = tv.refreshAuthorization()
+    fun forgetLg() { commands.cancelDevice(com.myremote.app.domain.CommandDevice.TV); tv.forgetPairing() }
+    fun refreshLgAuthorization() { commands.cancelDevice(com.myremote.app.domain.CommandDevice.TV); tv.refreshAuthorization() }
 
     fun openSoundbarSetup() {
         _soundbarSetupVisible.value = true
@@ -223,12 +238,13 @@ class RemoteSession(application: Application) : AutoCloseable {
         if (bluetooth.hasPermission()) soundbar.connectStored()
     }
     fun closeSoundbarSetup() { _soundbarSetupVisible.value = false }
-    fun selectSoundbar(device: SamsungDevice) = soundbar.select(device)
+    fun selectSoundbar(device: SamsungDevice) { commands.cancelDevice(com.myremote.app.domain.CommandDevice.SOUNDBAR); soundbar.select(device) }
     fun retrySoundbar() = soundbar.retry()
-    fun forgetSoundbar() = soundbar.forget()
+    fun forgetSoundbar() { commands.cancelDevice(com.myremote.app.domain.CommandDevice.SOUNDBAR); soundbar.forget() }
 
     override fun close() {
         stopConnections()
+        commands.close()
         soundbar.close()
         tv.close()
         streamer.close()

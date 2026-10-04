@@ -83,7 +83,7 @@ class NsdGoogleTvDiscovery(context: Context) : GoogleTvDiscovery {
         active = true
         discoveryListener = listener(run.start())
         try {
-            lock = wifi.createMulticastLock("MyRemoteGoogleTvDiscovery").apply { setReferenceCounted(false) }
+            lock = wifi.createMulticastLock("CouchPilotGoogleTvDiscovery").apply { setReferenceCounted(false) }
             lock?.acquire()
             nsd.discoverServices("_androidtvremote2._tcp.", NsdManager.PROTOCOL_DNS_SD, requireNotNull(discoveryListener))
         } catch (error: Exception) {

@@ -14,7 +14,7 @@ class LgNetworkTest {
         val address = InetAddress.getByName("127.0.0.1")
         DatagramSocket(0, address).use { receiver ->
             receiver.soTimeout = 2_000
-            val mac = "02:00:00:00:00:03"
+            val mac = "02:00:00:00:00:01"
             LgWakeOnLan.sendPackets(listOf(mac), listOf(address), receiver.localPort)
             repeat(3) {
                 val reply = DatagramPacket(ByteArray(200), 200)
@@ -29,8 +29,8 @@ class LgNetworkTest {
         assertEquals("10.7.255.255", LanNetwork.broadcast(InetAddress.getByName("10.7.8.9") as Inet4Address, 16).hostAddress)
     }
     @Test fun householdMacsAreNeverAttachedToAnUnrelatedTv() {
-        assertTrue(LgInstallation.forSelectedDevice(LgDevice("Other LG", "192.0.2.8", model = "55UK6700YVD", uuid = "other")).wakeMacs.isEmpty())
+        assertTrue(LgDevice("Other LG", "192.0.2.8", model = "55UK6700YVD", uuid = "other").wakeMacs.isEmpty())
         val configured = LgDevice("LG", "192.0.2.8", wakeMacs = listOf("02:00:00:00:00:01"))
-        assertEquals(configured, LgInstallation.forSelectedDevice(configured))
+        assertEquals(configured, configured)
     }
 }

@@ -1,6 +1,7 @@
 package com.myremote.app.diagnostics
 
 import android.util.Log
+import com.myremote.app.BuildConfig
 
 /** Allowlisted metadata only. Never accepts packet bodies, keys, pairing codes, MACs or hostnames. */
 object RemoteDiagnostics {
@@ -15,7 +16,7 @@ object RemoteDiagnostics {
         val event = Event(device, operation, outcome, code)
         if (history.size == 100) history.removeFirst()
         history.addLast(event)
-        Log.i("MyRemote", "device=$device operation=$operation outcome=$outcome code=${code ?: 0}")
+        if (BuildConfig.DEBUG) Log.d("CouchPilot", "device=$device operation=$operation outcome=$outcome code=${code ?: 0}")
     }
     @Synchronized fun snapshot(): List<Event> = history.toList()
 }

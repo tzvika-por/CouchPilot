@@ -75,7 +75,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
             try {
                 currentCoroutineContext().ensureActive()
                 val handshake = PairingHandshake()
-                ProtoWire.writeFrame(socket.outputStream, handshake.request("My Remote"))
+                ProtoWire.writeFrame(socket.outputStream, handshake.request("CouchPilot"))
                 repeat(3) {
                     val reply = GoogleTvSocketIo.readFrame(socket) ?: error("TV closed pairing connection")
                     currentCoroutineContext().ensureActive()
