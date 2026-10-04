@@ -1,5 +1,11 @@
 # Engineering execution plan
 
+## Working agreement — automatic continuation
+
+The owner explicitly requests automatic progression between known project tasks. After recording a result, begin the next unresolved authorized engineering item in the same turn; do not wait for “what now?” or another “continue.” Preserve minimal owner involvement: perform code inspection, protocol/manufacturer review, local validation and routine implementation autonomously. At a physical or missing-information boundary, state one concrete next action immediately. Do not repeat proven controls or UI-only tests, claim unsupported physical success, redesign UI before the owner's specifications, or push/tag/release. A required physical response remains a boundary; silence is not a test result or approval.
+
+Current next item: soundbar wake through the existing optical D.IN installation, now that LG network wake works. Establish Auto Power Link's setting/physical response with one focused session. Do not infer optical success from LG wake or change the soundbar's input to Bluetooth. After soundbar evidence, continue the remaining known engineering work automatically; handle any control-reconnection issue in code before another package request.
+
 2026-10-04 baseline: 662b866. Repository, history, adapters, UI, tests, documentation and latest physical evidence reviewed. Earlier authorization refresh did not fix LG inputs. LG power off works. Production soundbar was a fake.
 
 1. **Implemented; physical behavior remains unproven where noted:** preserve LG's working grant on command denial; compare verified SSAP clients; retain returned input application IDs for a safe alternate launcher path; repair wake network targeting and confirm connectivity rather than equating UDP send with wake.
@@ -62,3 +68,5 @@ Delivery: `/Volumes/Expansion/Videos/MyRemote.apk` was atomically replaced and v
 16. Latest customer a8b9fcb result: LG and Samsung wake still fail. Recorded candidate failure, reviewed runtime/manifest/wake paths and manufacturer/public API prerequisites, and checked LG's known TCP endpoints from both Mac LAN interfaces without pairing or control commands. Both ports accept and ARP agrees with the wired installation MAC; this is not standby proof. No further code defect established. Next information needed is one LG Mobile TV On setting read, not another APK or repeat wake session. Documentation-only follow-up; previous automated application gates and shared package remain unchanged.
 
 17. Customer found both LG Mobile TV On options off, enabled Turn on via Wi-Fi only, then confirmed MyRemote wakes the TV using the installed a8b9fcb APK. Record LG wake as physically proven for this cycle; the disabled wake receiver explains the latest blocker without another code change. Bluetooth stays off; no APK/re-pair/repeat LG test. Soundbar wake and optical Auto Power Link remain separate unresolved evidence, as does Xiaomi wake. Documentation-only validation and commit; no push, tag or release.
+
+18. Owner requests automatic task flow. Reviewed the M360 official manual (ENG-10/ENG-21) and Samsung M-series support again: optical Auto Power Link is available only in D.IN, defaults On, and the original remote Left button held for five seconds toggles it. MyRemote has no established settings packet for this operation. Request one setting-and-optical-wake session; this evaluates soundbar wake, not another LG/input/volume regression. No new APK or protocol patch before the result. Physical optical wake remains unproven.

@@ -68,3 +68,9 @@ The customer's latest a8b9fcb result is **FAILED** for standalone soundbar wake,
 ## LG wake resolved; soundbar evidence remains separate
 
 The customer confirms LG wake succeeds after enabling the TV's Turn on via Wi-Fi option. The requested test targeted LG only, so this is not evidence that the HW-M360 also woke. Standalone SPP wake remains unsuccessful from the prior test. Optical Auto Power Link now has a working TV-wake prerequisite; its current setting and actual response remain unconfirmed. No Samsung protocol, audio input or device setting changed in this update.
+
+## Next physical boundary: optical Auto Power Link
+
+The official M360 full manual ENG-10/ENG-21 and [Samsung M-series instructions](https://www.samsung.com/at/support/tv-audio-video/was-bewirkt-die-auto-power-link-funktion-meiner-soundbar-m-serie/) establish the existing optical/D.IN wake route and the original remote's Left-button five-second toggle. This is a configuration toggle, not a status read; if the display says OFF, another hold is needed to leave it ON. The current installation setting remains unknown. MyRemote has no proven command to configure it and cannot directly energize the optical link without the TV. No Bluetooth audio routing or settings packet is added.
+
+One focused session can configure Auto Power Link, place both TV and soundbar in standby, then wake the LG with the existing MyRemote APK and observe whether the soundbar wakes too. This is new soundbar interoperability evidence; no repeat source/volume test is requested. LG wake success alone is insufficient. If optical wake succeeds, review automatic restoration of MyRemote's soundbar control connection separately: post-power reconnect suppression must not replay a toggle or be cleared on ordinary app switching. No standalone soundbar wake or reconnection success is claimed yet.
