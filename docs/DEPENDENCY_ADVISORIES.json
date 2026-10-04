@@ -1,0 +1,6 @@
+{
+  "date": "2026-10-05",
+  "coordinates_queried": 111,
+  "scope": "resolved debug runtime graph, including platform/constraint coordinates",
+  "findings": []
+}

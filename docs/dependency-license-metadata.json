@@ -1,0 +1,182 @@
+[
+  {
+    "coordinate": "androidx.compose:compose-bom:2026.09.00",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack"
+  },
+  {
+    "coordinate": "androidx.activity:activity-compose:1.13.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/activity#1.13.0"
+  },
+  {
+    "coordinate": "androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.11.0"
+  },
+  {
+    "coordinate": "androidx.lifecycle:lifecycle-runtime-compose:2.11.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.11.0"
+  },
+  {
+    "coordinate": "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2",
+    "licenses": [
+      {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://github.com/Kotlin/kotlinx.coroutines"
+  },
+  {
+    "coordinate": "com.squareup.okhttp3:okhttp:4.12.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://square.github.io/okhttp/"
+  },
+  {
+    "coordinate": "androidx.compose.material3:material3:1.4.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/compose-material3#1.4.0"
+  },
+  {
+    "coordinate": "androidx.compose.foundation:foundation:1.12.1",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1"
+  },
+  {
+    "coordinate": "androidx.compose.ui:ui-tooling-preview:1.12.1",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1"
+  },
+  {
+    "coordinate": "androidx.compose.ui:ui-tooling:1.12.1",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1"
+  },
+  {
+    "coordinate": "junit:junit:4.13.2",
+    "licenses": [
+      {
+        "name": "Eclipse Public License 1.0",
+        "url": "http://www.eclipse.org/legal/epl-v10.html"
+      }
+    ],
+    "project_url": "http://junit.org"
+  },
+  {
+    "coordinate": "com.squareup.okhttp3:mockwebserver:4.12.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://square.github.io/okhttp/"
+  },
+  {
+    "coordinate": "com.squareup.okhttp3:okhttp-tls:4.12.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://square.github.io/okhttp/"
+  },
+  {
+    "coordinate": "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2",
+    "licenses": [
+      {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://github.com/Kotlin/kotlinx.coroutines"
+  },
+  {
+    "coordinate": "org.json:json:20240303",
+    "licenses": [
+      {
+        "name": "Public Domain",
+        "url": "https://github.com/stleary/JSON-java/blob/master/LICENSE"
+      }
+    ],
+    "project_url": "https://github.com/douglascrockford/JSON-java"
+  },
+  {
+    "coordinate": "androidx.test.ext:junit:1.3.0",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/testing"
+  },
+  {
+    "coordinate": "androidx.compose.ui:ui-test-junit4:1.12.1",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1"
+  },
+  {
+    "coordinate": "androidx.compose.ui:ui-test-manifest:1.12.1",
+    "licenses": [
+      {
+        "name": "The Apache Software License, Version 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+      }
+    ],
+    "project_url": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1"
+  }
+]

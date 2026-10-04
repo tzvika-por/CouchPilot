@@ -43,9 +43,9 @@ NSD network hints are read only on API 33+; older phones use the selected non-VP
 
 **PROVEN — Mac network, after the customer turned Xiaomi on:** en0 reaches 192.0.2.8 TCP 6466/6467/8009 over IPv4 and 6466/6467 over IPv6. Both Remote Service ports complete TLS 1.3 with the same certificate; no application request or pairing prompt was sent. en1 still times out on those IPv4 ports and both IPv6 service ports. The off state explains the immediately preceding Ethernet outage; it does not explain the remaining interface-specific difference.
 
-Current en0 mDNS: Xiaomi TV Box._androidtvremote2._tcp.local., SRV tv.local:6466. Addresses include 192.0.2.8, fe80::2%en0, 2001:db8:7::3 and 2001:db8:7::1. TXT reports bt=02:00:00:00:00:02, wp=6465 and isDeviceInStandbyMode=false. The meaning of wp is unknown; observed pairing remains 6467. This host supersedes the old host for current investigation; no literal LAN address is embedded in the app.
+Current en0 mDNS: Xiaomi TV Box._androidtvremote2._tcp.local., SRV tv.local.:6466. Addresses include 192.0.2.8, fe80::2%en0, 2001:db8:7::3 and 2001:db8:7::1. TXT reports bt=<device-mac>, wp=6465 and isDeviceInStandbyMode=false. The meaning of wp is unknown; observed pairing remains 6467. This host supersedes the old host for current investigation; no literal LAN address is embedded in the app.
 
-**OPEN QUESTION:** Wi-Fi client/bridge filtering remains the strongest explanation, not an identified router setting. An existing Tailscale Android TV peer accepts TLS but presents a different certificate from Xiaomi's LAN service; it is not an authenticated alternate Xiaomi endpoint and is excluded. Physical MyRemote pairing/commands remain unproven. No repeated UI, router or Xiaomi diagnostic is requested.
+**OPEN QUESTION:** Wi-Fi client/bridge filtering remains the strongest explanation, not an identified router setting. An existing Tailscale Android TV peer accepts TLS but presents a different certificate from Xiaomi's LAN service; it is not an authenticated alternate Xiaomi endpoint and is excluded. Physical CouchPilot pairing/commands remain unproven. No repeated UI, router or Xiaomi diagnostic is requested.
 
 
 ### Mac VPN comparison

@@ -6,7 +6,7 @@ Reviewed 2026-10-04. Original research used application commit `fa7d43ce4cc4dcb8
 
 The owner explicitly asks to investigate LG → HDMI → Xiaomi wake before UI work. Target is Xiaomi TV Box S **3rd Gen**, connected directly to LG 55UK6700YVD **HDMI_3**. LG network wake and Samsung optical Auto Power Link wake are physically confirmed. Xiaomi's disconnected phone Bluetooth wake remains unsuccessful. A root module, replacement hardware, always-on computer or ADB proxy is not needed to investigate this alternative.
 
-The candidate chain is MyRemote wakes LG via existing Wake-on-LAN, waits for registered Connected, then selects the TV-reported HDMI_3 input. LG's CEC controller may wake the selected source. MyRemote does not transmit directly onto the HDMI wire. The customer now physically confirms that selecting Xiaomi wakes this box. The exact CEC frames/vendor property were not captured; successful wake does not establish automatic Bluetooth control recovery.
+The candidate chain is CouchPilot wakes LG via existing Wake-on-LAN, waits for registered Connected, then selects the TV-reported HDMI_3 input. LG's CEC controller may wake the selected source. CouchPilot does not transmit directly onto the HDMI wire. The customer now physically confirms that selecting Xiaomi wakes this box. The exact CEC frames/vendor property were not captured; successful wake does not establish automatic Bluetooth control recovery.
 
 ## Primary protocol and manufacturer review
 
@@ -35,13 +35,13 @@ The Mac has neither direct access to the TV/box HDMI bus nor the phone's stored 
 
 With both devices awake, ensure LG General → SIMPLINK (HDMI-CEC) is On and the Xiaomi's HDMI-CEC master option is enabled. Firmware menu labels on Xiaomi may vary; no exact unverified path is prescribed. Leave other CEC/energy/input settings alone for this first check.
 
-In MyRemote select Mac mini so the main Power control targets LG. Tap the dedicated Xiaomi off control; if LG remains on, turn it off as well. Wait 30 seconds. Tap LG power to wake the TV, wait for LG Connected, then tap Xiaomi under Sources (HDMI_3). Observe for up to 30 seconds whether the Xiaomi interface appears without pressing its original remote's power button. Report that one result. This tests a new combined CEC wake route; there is no repeat pairing/source/volume/background diagnostic.
+In CouchPilot select Mac mini so the main Power control targets LG. Tap the dedicated Xiaomi off control; if LG remains on, turn it off as well. Wait 30 seconds. Tap LG power to wake the TV, wait for LG Connected, then tap Xiaomi under Sources (HDMI_3). Observe for up to 30 seconds whether the Xiaomi interface appears without pressing its original remote's power button. Report that one result. This tests a new combined CEC wake route; there is no repeat pairing/source/volume/background diagnostic.
 
 If it fails, record failure of this specific chain rather than declaring all CEC wake impossible. If the settings cannot be located, pause the dependent physical check rather than claiming it ran. No physical success is inferred from code, a simulator or Reddit.
 
 ## Validation and delivery
 
-Documentation-only investigation: diff and relative-link checks run before local commit. No application tests/builds rerun; prior validated code remains 119 JVM tests, 17 API 35 instrumentation tests, both builds/lint variants and Compose compilation. `/Volumes/Expansion/Videos/MyRemote.apk` remains the verified fa7d43c build. No push, tag or release.
+Documentation-only investigation: diff and relative-link checks run before local commit. No application tests/builds rerun; prior validated code remains 119 JVM tests, 17 API 35 instrumentation tests, both builds/lint variants and Compose compilation. `<shared-folder>/CouchPilot.apk` remains the verified fa7d43c build. No push, tag or release.
 
 ## Latest result and engineering continuation
 
