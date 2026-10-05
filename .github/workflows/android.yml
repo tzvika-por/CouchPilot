@@ -25,7 +25,7 @@ jobs:
         with:
           log-accepted-android-sdk-licenses: false
       - name: Install compile SDK
-        run: sdkmanager "platforms;android-37"
+        run: sdkmanager "platforms;android-37.0"
       - name: Build, unit tests and lint
         run: ./gradlew assembleDebug assembleRelease test lint :app:lintRelease assembleAndroidTest --no-daemon --max-workers=2
       - name: Diff whitespace check
