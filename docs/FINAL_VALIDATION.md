@@ -1,5 +1,7 @@
 # CouchPilot final validation
 
+Latest patch: [navigation feedback regression](#navigation-feedback-regression--2026-10-05). The preceding milestone results below are historical evidence.
+
 Date: 2026-10-05. Engineering baseline: e9e6ae21712cced6bb451b49b9648f2a457fb3b0. Candidate source was validated before its coherent local commits. No physical device command, push, tag, remote creation or production signing occurred.
 
 ## Build and automated gates
@@ -56,3 +58,35 @@ No new shared-folder APK delivery occurred. Version remains 0.1.0 / code 1; WebS
 Initial removal of installation constants exposed seven obsolete LG auto-MAC fixture assertions; tests now use explicit persisted configuration. One unused BoxWithConstraints lint error was fixed by using maxWidth. One lint FIR crash followed an edit during analysis; stable clean validation passed. One recursive Kotlin property inference error was fixed with an explicit scheduler property type. Dialog font injection was found insufficient during visual inspection; the actual-system-font helper supplies the missing coverage. These intermediate checks were not reported as passing.
 
 Staged whitespace checks also caught extra final blank lines in the new scheduler test and generated dependency report; both were removed before commit. No executable behavior changed.
+
+## Navigation feedback regression — 2026-10-05
+
+Baseline: ceda7e364f16e868f40bea2be590cc845ab93ae3. Customer physical testing reported successful Xiaomi commands with a visible screen shift on each press. No new physical confirmation of the patched UI is claimed.
+
+### Root cause and patch
+
+`RemoteSession` observes the device scheduler's busy set; each command changes `RemoteState.busyDevices`. `RemoteScreen` used that set to insert/remove a “Sending command” Text row in the scrolling Column above the sources and navigation. This changed content height and the coordinates of every lower control. The new regression test, run before the fix, failed at the first Up command: navigation and neighboring controls moved down 34px on the 320x640/160dpi emulator. Press-down alone did not move them.
+
+Pressed ripples, borders, shadows and geometry were audited. No pressed-state size/padding animation, conditional key icon/label, animateContentSize, AnimatedVisibility, navigation scroll-to or successful-command focus change exists in this screen. Successful key actions increment actionCount without changing device labels or input selection. Static selected-source borders and shadows are drawing effects; the reproduced reflow began with busy-state insertion.
+
+Command progress now uses a thin Box overlay, outside the scrolling content; error feedback is likewise overlaid and has an accessible 48dp dismiss action. The Snackbar remains an overlay. Transient busy/error state does not change remote content size, scroll range or neighboring positions. Existing button ripples, labels, roles and touch targets are retained. Protocols, connection lifecycle, command scheduling, applicationId, signing and version are unchanged.
+
+### Tests and validation
+
+- New `NavigationLayoutStabilityTest`: three parameter cases (100/150/200% Compose font scale, RTL). All ten navigation/media controls exercise press-down, busy execution, completion and rapid taps. Each case checks 70 delivered actions, exact anchor positions/sizes, unchanged scroll offset, >=48dp targets, visible progress, failure feedback, dismissal and recovery. Total 210 actions. Focused run: **3 passed**, 174.517 seconds.
+- Screenshot harness: two new busy scenarios (top and scrolled navigation). The error-bottom scenario now scrolls to the keypad while retaining visible overlay feedback. Busy/error screenshots were inspected visually; these are production composables with synthetic state, not physical-device proof or golden pixel comparisons.
+- Clean Gradle gate: `./gradlew clean assembleDebug assembleRelease test lint :app:lintRelease assembleAndroidTest --no-daemon --max-workers=2`. **BUILD SUCCESSFUL**, 3m13s, 136 tasks (135 executed, one up-to-date).
+- JVM: **177 tests**, 25 suites; zero failures, errors or skipped tests. Includes existing scheduling/order/cancellation/rapid-command/concurrency regressions.
+- Debug and unsigned release APKs built; Android/Compose test APK compiled.
+- Debug and release lint: **zero fatal/errors; 21 warnings each** (13 UseKtx, six NewerVersionAvailable, one OldTargetApi, one AndroidGradlePluginVersion). Same advisory inventory as the baseline. No formatting/Detekt/Ktlint task is configured.
+- Final complete emulator run: **64 passed**, 274.349 seconds; **30 functional tests plus 34 screenshot scenarios**, zero failed/ignored tests. Actual display 320x640/160dpi, API35; no physical peer used.
+- Native-system-font helper: **4 contextual tests passed**, 9.465 seconds; **6 screenshot tests passed**, 13.024 seconds at actual Android font scale2.0. These are supplemental executions of existing cases. The helper restored system font scale1.0.
+- Initial full run: 64 executed, 63 passed and one failed because the lifecycle suite's documented notification-denied precondition had not been reset. No production code was changed for this. After emulator-only `pm revoke com.myremote.app android.permission.POST_NOTIFICATIONS`, the entire 64-test suite passed as recorded above. The intentional pre-fix layout failure is separate reproduction evidence, not a passing validation run.
+- Post-validation delivery build: `./gradlew assembleDebug --no-daemon --max-workers=2`, **BUILD SUCCESSFUL**, 11s; 38 tasks up-to-date.
+- Git whitespace check passed. Debug APK signature verified; signer SHA-256 remains `dd57e000b36d89ac8c47f77f370dbc9b2e3494b1f40c0a0077647ee2d755ddd6`. Package remains `com.myremote.app`, version0.1.0/code1. No human TalkBack audit is claimed.
+
+### Delivery and publication boundary
+
+The validated debug APK is `app/build/outputs/apk/debug/app-debug.apk`, 12,740,863 bytes; SHA-256 `8299eb5c9174423631fd148baaca5cce60e3aeb620a14f8bc096aad70b4f2d28`. It was atomically copied and hash-verified at `<shared-folder>/CouchPilot.apk`; existing MyRemote.apk/app-debug.apk delivery aliases were also updated to identical bytes. This supports an in-place upgrade with the existing signing identity; no uninstall or new pairing is required by the patch.
+
+No Git-history rewrite, remote creation, push, tag or publication occurred. Existing publication/signing limitations remain unchanged. No repeat physical-device troubleshooting sequence was requested.

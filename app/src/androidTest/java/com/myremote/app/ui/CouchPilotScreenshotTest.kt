@@ -44,6 +44,7 @@ class CouchPilotScreenshotTest(private val scenario: String) {
             tvConnection = ConnectionState.CONNECTED, streamerConnection = ConnectionState.CONNECTED,
             soundbarConnection = ConnectionState.CONNECTED)
         val state = when (scenario) {
+            "main-busy", "main-navigation-busy" -> connected.copy(busyDevices = setOf(CommandDevice.STREAMER))
             "main-default" -> RemoteState(tvConnection = ConnectionState.NOT_CONFIGURED,
                 streamerConnection = ConnectionState.NOT_CONFIGURED, soundbarConnection = ConnectionState.NOT_CONFIGURED)
             "main-lg", "main-ps5-context" -> connected.copy(activeDevice = ActiveDevice.TV,
@@ -87,9 +88,9 @@ class CouchPilotScreenshotTest(private val scenario: String) {
         when (scenario) {
             "settings", "hebrew-settings" -> rule.onNodeWithTag("remote_settings").performClick()
             "help" -> { rule.onNodeWithTag("remote_settings").performClick(); rule.onNodeWithText(localized.getString(com.myremote.app.R.string.remote_help)).performScrollTo().performClick() }
-            "hebrew-navigation", "main-navigation", "font-150", "font-200", "hebrew-font-150", "hebrew-font-200", "landscape" -> rule.onNodeWithTag("fast_forward").performScrollTo()
+            "hebrew-navigation", "main-navigation", "main-navigation-busy", "font-150", "font-200", "hebrew-font-150", "hebrew-font-200", "landscape" -> rule.onNodeWithTag("fast_forward").performScrollTo()
             "main-keypad" -> rule.onNodeWithTag("digit_1").performScrollTo()
-            "error-bottom" -> rule.onNodeWithTag("action_error").performScrollTo()
+            "error-bottom" -> rule.onNodeWithTag("digit_0").performScrollTo()
         }
         rule.waitForIdle()
         if (scenario.endsWith("-font-200") && !scenario.startsWith("hebrew")) {
@@ -107,6 +108,7 @@ class CouchPilotScreenshotTest(private val scenario: String) {
     companion object {
         @JvmStatic @Parameterized.Parameters(name = "{0}") fun cases() = listOf(
             "main-default", "main-lg", "main-xiaomi", "main-ps5-context", "main-keypad", "main-navigation",
+            "main-busy", "main-navigation-busy",
             "error-top", "error-bottom", "settings", "help", "paused", "lg-setup", "lg-pairing",
             "lg-connected", "lg-authorization", "xiaomi-discovery", "xiaomi-code", "xiaomi-bt",
             "xiaomi-bt-connected", "samsung-setup", "samsung-permission", "hebrew-main", "hebrew-navigation",

@@ -51,6 +51,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
     onConfigureXiaomi: () -> Unit = {}, onConfigureLg: () -> Unit = {}, onConfigureSamsung: () -> Unit = {},
     connectionSessionActive: Boolean? = null, onConnectionSessionToggle: () -> Unit = {}) {
     val soundbarName = stringResource(R.string.soundbar)
+    val closeLabel = stringResource(R.string.close)
     val snackbar = remember { SnackbarHostState() }
     val feedback = failureText(state.failure)
     LaunchedEffect(state.errorMessage) {
@@ -58,18 +59,13 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
     }
     var settingsVisible by rememberSaveable { mutableStateOf(false) }
     var helpVisible by rememberSaveable { mutableStateOf(false) }
+    var errorDismissed by remember(state.errorMessage) { mutableStateOf(false) }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
+        Column(Modifier.fillMaxSize().testTag("remote_scroll").safeDrawingPadding().verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Header(state, { settingsVisible = true }, { onAction(RemoteAction.Power) })
             DeviceCards(state, { settingsVisible = true }, { settingsVisible = true }, { settingsVisible = true })
-            if (state.errorMessage != null) {
-                Text(failureText(state.failure), color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.testTag("action_error").semantics { liveRegion = LiveRegionMode.Polite })
-            }
-            if (state.busyDevices.isNotEmpty()) Text(stringResource(R.string.sending_command),
-                color = MutedInk, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             if (connectionSessionActive == false) {
                 Text(stringResource(R.string.remote_paused_guidance), color = MutedInk, style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onConnectionSessionToggle, modifier = Modifier.testTag("resume_session")) {
@@ -115,7 +111,7 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                 }
             }
             if (state.selectedInput == InputSource.XIAOMI) {
-                Panel {
+                Panel(Modifier.testTag("navigation_panel")) {
                     SectionTitle(R.string.navigation)
                     NavigationPad(onAction)
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -139,6 +135,30 @@ fun RemoteScreen(state: RemoteState, onAction: (RemoteAction) -> Unit,
                 }
             }
             Spacer(Modifier.height(8.dp))
+        }
+        // Transient command feedback must never participate in the remote's scroll layout.
+        // Box overlays leave button geometry and the scroll range unchanged while busy/errors toggle.
+        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().safeDrawingPadding()
+            .padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (state.busyDevices.isNotEmpty()) {
+                val sending = stringResource(R.string.sending_command)
+                LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).testTag("command_progress")
+                    .semantics { contentDescription = sending; liveRegion = LiveRegionMode.Polite }, color = Accent)
+            }
+            if (state.errorMessage != null && !errorDismissed) {
+                Surface(shape = TileShape, color = MaterialTheme.colorScheme.errorContainer) {
+                    Row(Modifier.fillMaxWidth().padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(failureText(state.failure), color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f).padding(vertical = 8.dp).testTag("action_error")
+                                .semantics { liveRegion = LiveRegionMode.Polite })
+                        IconButton(onClick = { errorDismissed = true },
+                            modifier = Modifier.size(48.dp).testTag("dismiss_action_error")) {
+                            Text("×", color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 24.sp,
+                                modifier = Modifier.clearAndSetSemantics { contentDescription = closeLabel })
+                        }
+                    }
+                }
+            }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding())
         }
@@ -235,8 +255,8 @@ private fun connectionLabel(state: ConnectionState) = when (state) {
 }
 
 @Composable
-private fun Panel(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+private fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
         .background(Brush.verticalGradient(listOf(Color(0xFF101D2A), Color(0xFF0D1722))))
         .padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }

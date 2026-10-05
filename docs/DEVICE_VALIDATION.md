@@ -2,6 +2,10 @@
 
 These observations came from customer physical tests and the recorded Mac investigation. Latest confirmation: LG wake on a8b9fcb succeeds after enabling Turn on via Wi-Fi, with Bluetooth wake left off. Background blinking is resolved; all three Off controls work. Samsung optical Auto Power Link wake with the TV is now physically confirmed. Standalone Samsung Bluetooth wake remains unsuccessful. The latest customer confirms LG HDMI_3 selection wakes Xiaomi; automatic post-wake control reconnection failed for Xiaomi and Samsung, while manual saved-device selection restored both quickly. LG inputs and Samsung volume/mute remain physically proven; earlier Xiaomi correctness was an aggregate success report. Google LAN interoperability, detailed standby behavior and the exact causes of failed wake remain unresolved. The latest record below supersedes historical unproven off/flicker statements.
 
+## Navigation layout regression — 2026-10-05
+
+The customer tested the CouchPilot debug build prepared at ceda7e3: Xiaomi navigation commands work, but each press visibly shifts the remote layout. This is a UI regression, not a failed command or pairing report. The emulator reproduced it from the current production composable: the transient “Sending command” row shifts the controls below the status section by 34px on a 320x640/160dpi display. The patch moves command and error feedback into overlays; physical confirmation of the patched visual behavior is not claimed. Existing hardware/protocol evidence below remains separate.
+
 ## Proven
 
 - Latest customer report: selecting Xiaomi/HDMI_3 in CouchPilot wakes the Xiaomi TV Box S (3rd Gen). After wake, Xiaomi and Samsung do not automatically reconnect in the installed fa7d43c package; selecting their saved devices in setup restores connections quickly and controls work. This establishes the LG-mediated wake route separately from the failed standalone HID wake.
