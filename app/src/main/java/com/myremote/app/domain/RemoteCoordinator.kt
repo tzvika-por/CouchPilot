@@ -12,7 +12,11 @@ class RemoteCoordinator(
     private val streamer: StreamerController,
     private val soundbar: SoundbarController,
     initialInput: InputSource? = null,
+    private val observedStreamerPower: () -> StreamerPowerObservation? = { null },
 ) {
+    private var appliedStreamerRevision = -1L
+    private var streamerPowerObservation = 0L
+    private var tvPowerObservation = 0L
     private val deviceMutexes = CommandDevice.entries.associateWith { Mutex() }
     var state = RemoteState(
         selectedInput = initialInput,
@@ -33,7 +37,10 @@ class RemoteCoordinator(
         return state
     }
 
+    // LG publishes connection lifecycle transitions, not periodic power readings.
+    // An equal CONNECTED assignment carries no additional power authority.
     fun updateTvConnection(connectionState: ConnectionState): RemoteState {
+        if (connectionState == ConnectionState.CONNECTED) tvPowerObservation++
         state = state.copy(tvConnection = connectionState,
             tvPowerOn = if (connectionState == ConnectionState.CONNECTED) true else state.tvPowerOn)
         return state
@@ -44,7 +51,15 @@ class RemoteCoordinator(
         return state
     }
 
+    fun updateStreamerPower(observation: StreamerPowerObservation): RemoteState {
+        // A delayed collector must not reapply a pre-command reading over optimism.
+        if (observation.revision <= appliedStreamerRevision) return state
+        appliedStreamerRevision = observation.revision
+        return updateStreamerPower(observation.on)
+    }
+
     fun updateStreamerPower(on: Boolean): RemoteState {
+        streamerPowerObservation++
         state = state.copy(streamerPowerOn = on)
         return state
     }
@@ -94,9 +109,7 @@ class RemoteCoordinator(
             RemoteAction.Power -> toggleActivePower(target)
             RemoteAction.TvPower -> toggleActivePower(CommandDevice.TV)
             RemoteAction.StreamerOff -> {
-                streamer.powerOff()
-                currentCoroutineContext().ensureActive()
-                state = state.copy(streamerPowerOn = false)
+                setStreamerPower(false)
             }
             RemoteAction.SoundbarPower -> soundbar.togglePower()
             is RemoteAction.SelectInput -> selectInput(action.source)
@@ -133,6 +146,7 @@ class RemoteCoordinator(
     private suspend fun toggleActivePower(target: CommandDevice) {
         when (if (target == CommandDevice.TV) ActiveDevice.TV else ActiveDevice.STREAMER) {
             ActiveDevice.TV -> {
+                val observation = tvPowerObservation
                 val wake = state.tvConnection != ConnectionState.CONNECTED || !state.tvPowerOn
                 if (wake) {
                     tv.powerOn()
@@ -140,13 +154,27 @@ class RemoteCoordinator(
                     reconnectAfterWake()
                 } else tv.powerOff()
                 currentCoroutineContext().ensureActive()
-                state = state.copy(tvPowerOn = wake)
+                if (tvPowerObservation == observation) state = state.copy(tvPowerOn = wake)
             }
             ActiveDevice.STREAMER -> {
-                if (state.streamerPowerOn) streamer.powerOff() else streamer.powerOn()
-                currentCoroutineContext().ensureActive()
-                state = state.copy(streamerPowerOn = !state.streamerPowerOn)
+                observedStreamerPower()?.let(::updateStreamerPower)
+                setStreamerPower(!state.streamerPowerOn)
             }
+        }
+    }
+
+    private suspend fun setStreamerPower(desired: Boolean) {
+        val before = observedStreamerPower()
+        before?.let(::updateStreamerPower)
+        val observation = streamerPowerObservation
+        if (desired) streamer.powerOn() else streamer.powerOff()
+        currentCoroutineContext().ensureActive()
+        val latest = observedStreamerPower()
+        if (latest != null && (before == null || latest.revision > before.revision)) {
+            // Read the authoritative snapshot too: its Main collector may still be queued.
+            updateStreamerPower(latest)
+        } else if (streamerPowerObservation == observation) {
+            state = state.copy(streamerPowerOn = desired)
         }
     }
 

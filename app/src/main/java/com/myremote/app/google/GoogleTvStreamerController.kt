@@ -8,7 +8,6 @@ import com.myremote.app.domain.StreamerController
 import com.myremote.app.google.protocol.KeyMapping
 import com.myremote.app.google.protocol.PairingHandshake
 import com.myremote.app.google.protocol.PairingProtocol
-import com.myremote.app.google.protocol.ProtoWire
 import com.myremote.app.google.protocol.ReconnectPolicy
 import java.security.interfaces.RSAPublicKey
 import javax.net.ssl.SSLSocket
@@ -47,8 +46,8 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
     @Volatile private var activeSocket: SSLSocket? = null
     private val pairingMutex = Mutex()
     @Volatile private var pairing: PairingSession? = null
-    private val _powerState = MutableStateFlow<Boolean?>(null)
-    val powerState: StateFlow<Boolean?> = _powerState
+    private val powerObservations = GoogleTvPowerObservations()
+    val powerState: StateFlow<com.myremote.app.domain.StreamerPowerObservation?> = powerObservations.state
 
     fun startDiscovery() {
         discovery.start()
@@ -75,11 +74,11 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
             try {
                 currentCoroutineContext().ensureActive()
                 val handshake = PairingHandshake()
-                ProtoWire.writeFrame(socket.outputStream, handshake.request("CouchPilot"))
+                GoogleTvSocketIo.writeFrame(socket, handshake.request("CouchPilot"))
                 repeat(3) {
                     val reply = GoogleTvSocketIo.readFrame(socket) ?: error("TV closed pairing connection")
                     currentCoroutineContext().ensureActive()
-                    handshake.accept(reply)?.let { next -> ProtoWire.writeFrame(socket.outputStream, next) }
+                    handshake.accept(reply)?.let { next -> GoogleTvSocketIo.writeFrame(socket, next) }
                 }
                 check(handshake.step == PairingHandshake.Step.CODE_REQUIRED)
                 if (!store.isCurrentAttempt(attempt)) throw CancellationException("Pairing was cancelled")
@@ -105,7 +104,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
             val serverCertificate = session.socket.session.peerCertificates.single() as java.security.cert.X509Certificate
             val server = serverCertificate.publicKey as RSAPublicKey
             val secret = PairingProtocol.secretHash(client, server, code.trim())
-            ProtoWire.writeFrame(session.socket.outputStream, session.handshake.submitSecret(secret))
+            GoogleTvSocketIo.writeFrame(session.socket, session.handshake.submitSecret(secret))
             val reply = GoogleTvSocketIo.readFrame(session.socket) ?: error("TV closed pairing connection")
             session.handshake.accept(reply)
             check(session.handshake.step == PairingHandshake.Step.COMPLETE)
@@ -207,7 +206,11 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
     private suspend fun runConnection(socket: SSLSocket, onReady: () -> Unit) {
         val session = GoogleTvCommandSession(socket)
         val owner = currentCoroutineContext()[Job] ?: error("Connection has no owner")
-        synchronized(this) { owner.ensureActive(); commandSession = session }
+        val powerOwner = synchronized(this) {
+            owner.ensureActive()
+            commandSession = session
+            powerObservations.begin(owner)
+        }
         try {
             session.run(onReady = {
                 synchronized(this) {
@@ -220,9 +223,12 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
                     }
                 }
             }, onPowerState = { on -> synchronized(this) {
-                if (owner.isActive && commandSession === session) _powerState.value = on
+                if (owner.isActive && commandSession === session) powerObservations.observe(powerOwner, on)
             } })
-        } finally { synchronized(this) { if (commandSession === session) commandSession = null } }
+        } finally { synchronized(this) {
+            if (commandSession === session) commandSession = null
+            powerObservations.end(powerOwner)
+        } }
     }
 
     override suspend fun sendKey(key: RemoteKey, pressKind: PressKind) {
@@ -240,7 +246,7 @@ class GoogleTvStreamerController(context: Context) : StreamerController, AutoClo
 
     @Synchronized private fun disconnect() {
         commandSession = null
-        _powerState.value = null
+        powerObservations.clear()
         connectionJob?.cancel()
         connectionJob = null
         activeSocket?.close()

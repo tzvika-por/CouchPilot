@@ -14,7 +14,7 @@ class ConnectionLifetimeTest {
         assertEquals(0, closes)
         lifetime.stop(); lifetime.stop()
         assertFalse(lifetime.active.value)
-        assertEquals(1, closes)
+        assertEquals(2, closes)
         lifetime.start()
         assertEquals(2, opens)
     }

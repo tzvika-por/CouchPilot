@@ -23,8 +23,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        RemoteConnectionService.start(this)
-        (application as RemoteApplication).remoteSession.onUiVisible()
+        val remote = (application as RemoteApplication).remoteSession
+        if (remote.mayAutoStartConnections) RemoteConnectionService.start(this)
+        remote.onUiVisible()
     }
 
     override fun onStop() {

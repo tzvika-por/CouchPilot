@@ -7,6 +7,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,7 +38,7 @@ internal class SamsungSession(private val transport: SamsungTransport, scope: Co
         } finally { closed.complete(Unit) }
     }
 
-    suspend fun initialize() = mutex.withLock {
+    suspend fun initialize() = operation {
         transport.send(SamsungProtocol.start())
         verifyVolume()
     }
@@ -45,20 +46,20 @@ internal class SamsungSession(private val transport: SamsungTransport, scope: Co
     suspend fun volumeUp() = volumeCommand(SamsungProtocol.volumeUp())
     suspend fun volumeDown() = volumeCommand(SamsungProtocol.volumeDown())
 
-    private suspend fun volumeCommand(command: ByteArray) = mutex.withLock {
+    private suspend fun volumeCommand(command: ByteArray) = operation {
         transport.send(command)
         // Status confirms a living Samsung control session, not that physical volume changed.
         verifyVolume()
     }
 
-    suspend fun mute() = mutex.withLock {
+    suspend fun mute() = operation {
         transport.send(SamsungProtocol.mute())
         val response = query(116, SamsungProtocol.muteQuery())
         SamsungProtocol.muted(response) ?: throw IOException("Samsung mute status was invalid")
     }
 
     /** A toggle, never retried: standby may close the stream without an acknowledgement. */
-    suspend fun togglePower() = mutex.withLock {
+    suspend fun togglePower() = operation {
         verifyVolume()
         transport.send(SamsungProtocol.powerToggle())
     }
@@ -73,13 +74,23 @@ internal class SamsungSession(private val transport: SamsungTransport, scope: Co
         synchronized(this) { pending = command to reply }
         try {
             transport.send(bytes)
-            return try { withTimeout(4_000) { reply.await() } }
-            catch (error: TimeoutCancellationException) {
-                // No IDs: a late reply after timeout must never satisfy the next command's query.
-                close()
-                throw DeviceFailure(FailureKind.NETWORK, "Samsung status timed out", error)
-            }
+            return reply.await()
         } finally { synchronized(this) { pending = null }; reply.cancel() }
+    }
+
+    private suspend fun <T> operation(block: suspend () -> T): T = mutex.withLock {
+        try {
+            // The budget includes command writes, query writes and the status response.
+            withTimeout(4_000) { block() }
+        } catch (error: Exception) {
+            // This protocol has no IDs. Timeout/cancellation must retire the connection,
+            // otherwise its late response could be mistaken for a later command's status.
+            close()
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            if (error is TimeoutCancellationException)
+                throw DeviceFailure(FailureKind.NETWORK, "Samsung operation timed out", error)
+            throw error
+        }
     }
 
     suspend fun awaitClosed() = closed.await()

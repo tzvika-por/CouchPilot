@@ -38,7 +38,9 @@ class BackgroundConnectionTest {
 
     @Test fun nativeHidRegistrationSurvivesActivityStopReturnAndRecreation() = runBlocking {
         permissions(notifications = true)
-        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val scenario = ActivityScenario.launch(MainActivity::class.java).also { current ->
+            current.onActivity { RemoteConnectionService.start(it) }
+        }
         try {
             await { app.remoteSession.connectionSessionActive.value }
             val original = app.remoteSession
@@ -65,7 +67,9 @@ class BackgroundConnectionTest {
 
     @Test fun deniedNotificationPermissionDoesNotPreventServiceOrExplicitDisconnect() = runBlocking {
         permissions(notifications = false)
-        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val scenario = ActivityScenario.launch(MainActivity::class.java).also { current ->
+            current.onActivity { RemoteConnectionService.start(it) }
+        }
         try {
             await { app.remoteSession.connectionSessionActive.value }
             scenario.moveToState(Lifecycle.State.CREATED)
@@ -73,6 +77,42 @@ class BackgroundConnectionTest {
             assertTrue(app.remoteSession.connectionSessionActive.value)
             RemoteConnectionService.disconnect(context)
             await { !app.remoteSession.connectionSessionActive.value }
+        } finally { scenario.close() }
+    }
+
+    @Test fun stoppedSessionRejectsCommandsAndSetupReconnectWhileBackgrounded() = runBlocking {
+        permissions(notifications = true)
+        val scenario = ActivityScenario.launch(MainActivity::class.java).also { current ->
+            current.onActivity { RemoteConnectionService.start(it) }
+        }
+        try {
+            await { app.remoteSession.connectionSessionActive.value }
+            RemoteConnectionService.disconnect(context)
+            await { !app.remoteSession.connectionSessionActive.value }
+            val remote = app.remoteSession
+            val before = remote.remoteState.value.actionCount
+            instrumentation.runOnMainSync {
+                remote.dispatch(com.myremote.app.domain.RemoteAction.VolumeUp)
+                remote.dispatch(com.myremote.app.domain.RemoteAction.TvPower)
+                remote.dispatch(com.myremote.app.domain.RemoteAction.Key(com.myremote.app.domain.RemoteKey.HOME))
+                remote.useBluetoothConnection()
+                remote.selectHidHost(HidHost("Synthetic stopped host", "02:00:00:00:00:01"))
+                remote.selectSoundbar(com.myremote.app.samsung.SamsungDevice("Synthetic stopped bar", "02:00:00:00:00:02"))
+                remote.selectLg(com.myremote.app.lg.LgDevice("Synthetic stopped TV", "192.168.1.10"))
+                remote.retry(); remote.retryLg(); remote.retrySoundbar()
+            }
+            scenario.moveToState(Lifecycle.State.CREATED)
+            delay(500)
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            delay(500)
+            assertFalse("Foreground return must not resume an explicitly stopped lease", remote.connectionSessionActive.value)
+            instrumentation.runOnMainSync { remote.stopConnections() }
+            assertFalse(remote.connectionSessionActive.value)
+            assertFalse(remote.hidRegistered.value)
+            assertEquals(before, remote.remoteState.value.actionCount)
+            assertEquals(com.myremote.app.domain.FailureKind.NOT_CONNECTED, remote.remoteState.value.failure)
+            assertFalse(remote.tvState.value == com.myremote.app.domain.ConnectionState.CONNECTING)
+            assertFalse(remote.soundbarState.value == com.myremote.app.domain.ConnectionState.CONNECTING)
         } finally { scenario.close() }
     }
 

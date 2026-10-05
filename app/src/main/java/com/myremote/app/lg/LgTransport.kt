@@ -28,30 +28,44 @@ internal interface LgTransportFactory {
 }
 
 /** A TV-specific WSS client. First approval pins the self-signed certificate; later connections require that pin. */
-internal class OkHttpLgTransportFactory(private val lan: com.myremote.app.network.LanNetwork? = null, private val port: Int = 3001) : LgTransportFactory {
+internal class OkHttpLgTransportFactory(
+    private val lan: com.myremote.app.network.LanNetwork? = null,
+    private val port: Int = 3001,
+    private val networkAccess: LgNetworkAccess? = null,
+) : LgTransportFactory {
     @SuppressLint("CustomX509TrustManager", "TrustAllX509TrustManager")
     override suspend fun connect(host: String, expectedPin: String?): LgTransport {
+        val access = networkAccess ?: lan?.let { selectedLan ->
+            val network = selectedLan.selected() ?: throw com.myremote.app.domain.DeviceFailure(
+                com.myremote.app.domain.FailureKind.NETWORK, "No local network")
+            LgNetworkAccess(network.socketFactory,
+                { network.getAllByName(it).toList() }, { selectedLan.localAddresses(network, it) })
+        } ?: LgNetworkAccess()
+        val url = okhttp3.HttpUrl.Builder().scheme("https").host(host).port(port).build()
+        // OkHttp 4.12 resolves numeric literals without invoking Dns.lookup.
+        // Validate the canonical URL host before newWebSocket can schedule TCP/TLS setup.
+        if (':' in url.host || url.host.all { it.isDigit() || it == '.' }) {
+            access.approve(listOf(java.net.InetAddress.getByName(url.host)))
+        }
         val trust = LgTvTrustManager(expectedPin)
         val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
-        val network = lan?.let { it.selected() ?: throw com.myremote.app.domain.DeviceFailure(
-            com.myremote.app.domain.FailureKind.NETWORK, "No local network") }
         val builder = OkHttpClient.Builder()
             .sslSocketFactory(ssl.socketFactory, trust)
             .hostnameVerifier { _, _ -> true } // LG uses a self-signed LAN certificate; the pin is checked above.
+            .proxy(java.net.Proxy.NO_PROXY) // LAN control must not delegate destination DNS to a proxy.
             .followRedirects(false)
             .followSslRedirects(false)
             .connectTimeout(8, TimeUnit.SECONDS)
             .pingInterval(15, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
-        if (network != null) builder.socketFactory(network.socketFactory)
-            .dns(object : okhttp3.Dns {
-                override fun lookup(hostname: String): List<java.net.InetAddress> = lan.localAddresses(network, network.getAllByName(hostname).toList())
-            })
+        builder.socketFactory(access.socketFactory).dns(object : okhttp3.Dns {
+            override fun lookup(hostname: String): List<java.net.InetAddress> =
+                access.approve(access.resolve(hostname))
+        })
         val client = builder.build()
-        val endpoint = if (':' in host && !host.startsWith("[")) "[$host]" else host
         val opened = CompletableDeferred<Unit>()
         val incoming = Channel<String>(64)
-        val socket = client.newWebSocket(Request.Builder().url("wss://$endpoint:$port/").build(),
+        val socket = client.newWebSocket(Request.Builder().url(url).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) { opened.complete(Unit) }
                 override fun onMessage(webSocket: WebSocket, text: String) {

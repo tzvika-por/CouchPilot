@@ -65,6 +65,29 @@ class SamsungOwnershipTest {
         assertEquals(true, controller.muted.value); assertNull(controller.error.value); controller.disconnect()
     }
 
+    @Test fun writeTimeoutDisconnectsThenReconnectsWithoutReplayingVolume() = runTest {
+        val original = ScriptedSamsungTransport(); val fresh = ScriptedSamsungTransport(); var connects = 0
+        var physicalWrites = 0
+        val controller = SamsungSoundbarController(SamsungTransportFactory {
+            if (++connects == 1) object : SamsungTransport by original {
+                override suspend fun send(bytes: ByteArray) {
+                    if (bytes.contentEquals(SamsungProtocol.volumeUp())) {
+                        physicalWrites++; awaitCancellation()
+                    } else original.send(bytes)
+                }
+            } else fresh
+        }, backgroundScope, { "synthetic-bond" }, {})
+        controller.retry(); runCurrent(); assertEquals(ConnectionState.CONNECTED, controller.connectionState)
+        val command = async { runCatching { controller.volumeUp() } }
+        runCurrent(); advanceTimeBy(4_001); runCurrent()
+        assertTrue(command.isCompleted); assertTrue(command.await().isFailure); assertTrue(original.closed)
+        assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
+        advanceTimeBy(3_001); runCurrent()
+        assertEquals(ConnectionState.CONNECTED, controller.connectionState); assertFalse(fresh.closed)
+        assertEquals(2, connects); assertEquals(1, physicalWrites)
+        assertFalse(fresh.sent.contains("ff0b037f0101")); controller.disconnect()
+    }
+
     @Test fun disconnectInvalidatesLateConnectionAndForgetRemainsAuthoritative() = runTest {
         val gate = CompletableDeferred<Unit>(); val transport = ScriptedSamsungTransport(); var saved: String? = "bond"
         val controller = SamsungSoundbarController(SamsungTransportFactory {

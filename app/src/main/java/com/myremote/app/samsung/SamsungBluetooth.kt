@@ -55,16 +55,7 @@ class SamsungBluetooth(private val context: Context) {
                     continuation.invokeOnCancellation { runCatching { socket.close() }; worker.cancel() }
                 }
             }
-            object : SamsungTransport {
-                override suspend fun send(bytes: ByteArray) = withContext(Dispatchers.IO) {
-                    socket.outputStream.write(bytes)
-                    socket.outputStream.flush()
-                }
-                override suspend fun receive(): SamsungProtocol.Frame? = withContext(Dispatchers.IO) {
-                    SamsungProtocol.read(socket.inputStream)
-                }
-                override fun close() { runCatching { socket.close() } }
-            }
+            StreamSamsungTransport(socket.inputStream, socket.outputStream, { runCatching { socket.close() }.let { } })
         } catch (error: Throwable) {
             runCatching { socket.close() }
             if (error is kotlinx.coroutines.TimeoutCancellationException)

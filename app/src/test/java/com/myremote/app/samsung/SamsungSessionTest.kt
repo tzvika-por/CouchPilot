@@ -57,6 +57,46 @@ class SamsungSessionTest {
         assertTrue(transport.closed)
         session.close()
     }
+    @Test fun queryTimeoutStartsBeforeBlockedQueryWrite() = runTest {
+        var closed = false; var writes = 0
+        val transport = object : SamsungTransport {
+            override suspend fun send(bytes: ByteArray) { writes++; kotlinx.coroutines.awaitCancellation() }
+            override suspend fun receive(): SamsungProtocol.Frame? = kotlinx.coroutines.awaitCancellation()
+            override fun close() { closed = true }
+        }
+        val session = SamsungSession(transport, backgroundScope)
+        val result = async { runCatching { session.togglePower() } }
+        runCurrent(); advanceTimeBy(4_001); runCurrent()
+        assertTrue("Query budget must include its blocked write", result.isCompleted)
+        assertTrue(result.await().exceptionOrNull() is DeviceFailure); assertTrue(closed); assertEquals(1, writes)
+    }
+
+    @Test fun operationBudgetIncludesVolumeWriteAndStatusQueryTogether() = runTest {
+        val original = ScriptedSamsungTransport(); var volumeStarted = false
+        val transport = object : SamsungTransport by original {
+            override suspend fun send(bytes: ByteArray) {
+                if (bytes.contentEquals(SamsungProtocol.volumeUp())) {
+                    volumeStarted = true; kotlinx.coroutines.delay(3_000); original.send(bytes)
+                } else if (volumeStarted && bytes.contentEquals(SamsungProtocol.volumeQuery())) {
+                    kotlinx.coroutines.delay(800) // Query sent, no status response.
+                } else original.send(bytes)
+            }
+        }
+        val session = SamsungSession(transport, backgroundScope); session.initialize()
+        val result = async { runCatching { session.volumeUp() } }
+        runCurrent(); advanceTimeBy(4_001); runCurrent()
+        assertTrue(result.isCompleted); assertTrue(result.await().exceptionOrNull() is DeviceFailure)
+        assertTrue(original.closed)
+        assertEquals(1, original.sent.count { it == "ff0b037f0101" })
+    }
+    @Test fun cancelledStatusQueryRetiresConnectionInsteadOfReusingLateReply() = runTest {
+        val transport = ScriptedSamsungTransport(autoReply = false)
+        val session = SamsungSession(transport, backgroundScope)
+        val pending = async { session.initialize() }; runCurrent()
+        pending.cancel(); runCurrent(); pending.join()
+        assertTrue(transport.closed); session.close()
+    }
+
     @Test fun concurrentCommandsRemainSerializedWithoutRequestIds() = runTest {
         val transport = ScriptedSamsungTransport()
         val session = SamsungSession(transport, backgroundScope)

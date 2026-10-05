@@ -34,6 +34,12 @@ internal object GoogleTvSocketIo {
         continuation.invokeOnCancellation { closeOwned(); worker.cancel() }
     }
 
+    suspend fun writeFrame(socket: Socket, payload: ByteArray, timeoutMillis: Long = 4_000) {
+        com.myremote.app.network.OwnedSocketWrite.run(timeoutMillis, { socket.close() }) {
+            ProtoWire.writeFrame(socket.outputStream, payload)
+        }
+    }
+
     suspend fun readFrame(socket: Socket): ByteArray? = work { own ->
         own(socket)
         ProtoWire.readFrame(socket.inputStream)

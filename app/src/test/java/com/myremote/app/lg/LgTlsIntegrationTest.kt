@@ -37,7 +37,7 @@ class LgTlsIntegrationTest {
                 }
             }))
             server.start()
-            val session = LgSsapSession(OkHttpLgTransportFactory(port = server.port).connect("localhost", pin(certificate)), this)
+            val session = LgSsapSession(OkHttpLgTransportFactory(port = server.port, networkAccess = LgNetworkAccess(filter = { it })).connect("localhost", pin(certificate)), this)
             try {
                 withTimeout(5_000) {
                     assertEquals("saved-key", session.register("saved-key") { fail("Stored grant must not prompt") })
@@ -54,7 +54,7 @@ class LgTlsIntegrationTest {
             server.useHttps(HandshakeCertificates.Builder().heldCertificate(certificate).build().sslSocketFactory(), false)
             server.start()
             try {
-                OkHttpLgTransportFactory(port = server.port).connect("localhost", "00".repeat(32))
+                OkHttpLgTransportFactory(port = server.port, networkAccess = LgNetworkAccess(filter = { it })).connect("localhost", "00".repeat(32))
                 fail("Changed certificate must be rejected")
             } catch (error: SSLHandshakeException) { assertTrue(error.toString(), generateSequence<Throwable>(error) { it.cause }
                 .any { it.message.orEmpty().contains("LG certificate changed") }) }
@@ -69,7 +69,7 @@ class LgTlsIntegrationTest {
             first.start(); destination.start()
             first.enqueue(MockResponse().setResponseCode(302).addHeader("Location", destination.url("/redirect")))
             try {
-                OkHttpLgTransportFactory(port = first.port).connect("localhost", pin(certificate))
+                OkHttpLgTransportFactory(port = first.port, networkAccess = LgNetworkAccess(filter = { it })).connect("localhost", pin(certificate))
                 fail("Redirect must fail")
             } catch (_: java.io.IOException) { }
             assertEquals(1, first.requestCount)

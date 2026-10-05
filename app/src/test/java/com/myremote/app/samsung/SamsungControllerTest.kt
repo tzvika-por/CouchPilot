@@ -92,11 +92,14 @@ class SamsungControllerTest {
             }
         }, CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), { "bond" }, {})
         controller.retry(); runCurrent()
-        val power = async { controller.togglePower() }
+        val power = async { runCatching { controller.togglePower() } }
         runCurrent(); advanceTimeBy(120_000); runCurrent()
         assertEquals(1, calls)
         assertEquals(1, writes)
-        completeWrite.complete(Unit); power.await()
+        assertTrue(power.isCompleted)
+        assertTrue(power.await().exceptionOrNull() is DeviceFailure)
+        assertTrue(scripted.closed)
+        completeWrite.complete(Unit)
         assertEquals(ConnectionState.DISCONNECTED, controller.connectionState)
         controller.close()
     }
