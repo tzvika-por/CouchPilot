@@ -48,7 +48,7 @@ CouchPilot does not launch yes+ automatically, detect the foreground streamer ap
 Use JDK 25 (validated), Android SDK platform 37 and the checked-in Gradle wrapper 9.6.0. Language bytecode targets Java 17. Minimum Android 8/API 26; Bluetooth HID needs API 28+. Target SDK 36.
 
 ```sh
-git clone <repository-url>
+git clone https://github.com/tzvika-por/CouchPilot.git
 cd CouchPilot
 # Set ANDROID_HOME or create ignored local.properties with sdk.dir.
 ./gradlew assembleDebug

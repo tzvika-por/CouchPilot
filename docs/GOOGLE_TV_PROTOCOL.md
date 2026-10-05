@@ -1,5 +1,7 @@
 # Google TV Remote Service v2 adapter
 
+Installation-specific addresses, hostnames and identifiers in historical examples are anonymized. The reachability/protocol observations remain actual evidence; do not use these literals as device configuration.
+
 ## Discovery and connection
 
 Android `NsdManager` discovers `_androidtvremote2._tcp.` services. Resolved entries retain the service name, all available IPv4/IPv6 addresses on Android 14+, and the advertised hostname on Android 16+; older releases provide the one address exposed by the legacy NSD API. Users may instead enter a DNS hostname, IPv4 address, or IPv6 literal. A Wi-Fi multicast lock is held only while the setup dialog discovers devices. The resolved service port is used for commands (normally 6466); pairing uses 6467. Discovery stops on dialog close or device selection.

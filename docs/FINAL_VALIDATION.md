@@ -1,6 +1,6 @@
 # CouchPilot final validation
 
-Latest patch: [navigation feedback regression](#navigation-feedback-regression--2026-10-05). The preceding milestone results below are historical evidence.
+Latest validation: [post-privacy-rewrite acceptance](#post-privacy-rewrite-acceptance--2026-10-05). Earlier milestone sections are historical evidence; their former publication block is superseded by the approved, audited rewrite.
 
 Date: 2026-10-05. Engineering baseline: e9e6ae21712cced6bb451b49b9648f2a457fb3b0. Candidate source was validated before its coherent local commits. No physical device command, push, tag, remote creation or production signing occurred.
 
@@ -90,3 +90,21 @@ Command progress now uses a thin Box overlay, outside the scrolling content; err
 The validated debug APK is `app/build/outputs/apk/debug/app-debug.apk`, 12,740,863 bytes; SHA-256 `8299eb5c9174423631fd148baaca5cce60e3aeb620a14f8bc096aad70b4f2d28`. It was atomically copied and hash-verified at `<shared-folder>/CouchPilot.apk`; existing MyRemote.apk/app-debug.apk delivery aliases were also updated to identical bytes. This supports an in-place upgrade with the existing signing identity; no uninstall or new pairing is required by the patch.
 
 No Git-history rewrite, remote creation, push, tag or publication occurred. Existing publication/signing limitations remain unchanged. No repeat physical-device troubleshooting sequence was requested.
+
+## Post-privacy-rewrite acceptance — 2026-10-05
+
+Original physically approved HEAD: `d579b09795e4f255dda3334e9fa9435fe777020e`. Final rewritten baseline: `39d1f5d0c7cc1e4f5f5140ac93766950fd6c085d`. The customer confirmed navigation no longer shifts the layout and the UI looks good. No further physical test was requested.
+
+- Final clean gate: `./gradlew clean assembleDebug assembleRelease test lint :app:lintRelease assembleAndroidTest --no-daemon --max-workers=2`: **BUILD SUCCESSFUL**, 2m 9s; 136 tasks, 135 executed and one up-to-date. Signed debug, unsigned release and instrumentation APKs built.
+- JVM: **177 tests in 25 suites**, zero failures, errors or skipped tests.
+- Full emulator suite: **64 passed**, 275.040 seconds; **30 functional tests and 34 screenshot scenarios**, zero failures/skips. Includes three navigation-stability cases at 100%, 150% and 200% Compose font scale, 210 delivered actions with unchanged bounds and scroll offset.
+- Native-system-font helper: **4 contextual tests passed**, 9.225 seconds, and **6 screenshot tests passed**, 14.753 seconds, at actual Android font scale 2.0. These are supplemental executions, not additional unique scenarios. Font scale was restored.
+- Debug and release lint: **zero errors/fatal findings and 21 warnings each**: 13 UseKtx, six NewerVersionAvailable, one OldTargetApi and one AndroidGradlePluginVersion. No formatter, Detekt or Ktlint task is configured.
+- Static checks: Git whitespace, shell syntax, both workflow YAML files, all seven pinned action uses against upstream commits, 109 English/Hebrew resource keys, ten XML files and relative documentation/image links passed.
+- Dependency/license checks: 18 direct dependency records reviewed, no incompatible copied protocol code/GPL/AGPL found; Apache LICENSE matches the official text. Existing same-day OSV evidence covers 111 resolved runtime coordinates with zero advisory IDs; dependencies did not change. Separate MPL public-suffix notices remain retained.
+- History audit: all 35 original commits preserved, parent graphs/dates verified; 539 unique blobs and 577 trees scanned. Zero actual credential/private-key/token, known installation-identifier or private-metadata findings. Five historical image blobs also passed offline OCR review. Reviewed literal matches are synthetic test fixtures. Original refs/reflogs/unreachable objects were removed, and the original approved commit is unavailable in the publishable object database.
+- Approved-tree integrity: production source, tests, resources, build configuration and screenshots are byte-identical. Only two baseline documentation files received privacy substitutions; subsequent changes are publication documentation/rules. See [history sanitization](HISTORY_SANITIZATION.md).
+
+ApplicationId/namespace remain `com.myremote.app`, version 0.1.0/code 1. The existing debug signer is retained. Customer delivery is `~/Videos/CouchPilot.apk`; SHA-256 `8299eb5c9174423631fd148baaca5cce60e3aeb620a14f8bc096aad70b4f2d28`. It remains byte-identical to the physically approved APK. No new key, release tag, GitHub Release or public APK upload is authorized.
+
+The external all-ref recovery bundle is verified, privately permissioned and never delivered to Videos or GitHub. The final publication report records post-documentation-commit history counts, final local/remote HEAD and initial hosted CI status at `~/Videos/CouchPilot-Publication-Report.txt`.

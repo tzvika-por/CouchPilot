@@ -1,6 +1,12 @@
 # Device validation
 
+Installation-specific addresses, hostnames and identifiers in historical examples are anonymized. The reachability/protocol observations remain actual evidence; do not use these literals as device configuration.
+
 These observations came from customer physical tests and the recorded Mac investigation. Latest confirmation: LG wake on a8b9fcb succeeds after enabling Turn on via Wi-Fi, with Bluetooth wake left off. Background blinking is resolved; all three Off controls work. Samsung optical Auto Power Link wake with the TV is now physically confirmed. Standalone Samsung Bluetooth wake remains unsuccessful. The latest customer confirms LG HDMI_3 selection wakes Xiaomi; automatic post-wake control reconnection failed for Xiaomi and Samsung, while manual saved-device selection restored both quickly. LG inputs and Samsung volume/mute remain physically proven; earlier Xiaomi correctness was an aggregate success report. Google LAN interoperability, detailed standby behavior and the exact causes of failed wake remain unresolved. The latest record below supersedes historical unproven off/flicker statements.
+
+## Customer-approved navigation fix — 2026-10-05
+
+The customer physically tested the debug APK prepared at original HEAD d579b09 and confirms PASS: Xiaomi navigation no longer shifts the layout, navigation feels correct and the UI looks good. The UX fix is approved. This confirms visual/navigation behavior without adding claims about previously unproven LAN pairing, extended standby or automatic reconnection.
 
 ## Navigation layout regression — 2026-10-05
 
