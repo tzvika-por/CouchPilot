@@ -29,4 +29,4 @@ Meaningful pre-1.0 development history; no public stable release or tag exists y
 - Yes+ numeric/previous-channel behavior, English/Hebrew remote, deterministic protocol and emulator tests.
 - Keystore-wrapped LG grants, backup exclusions and bounded secure discovery.
 
-1.0.0 is the target first stable release. It will be added as a released section only after remaining hardening/signing readiness is resolved.
+1.0.0 / versionCode 3 is prepared as the first stable release artifact, signed only with the permanent release identity. The existing installation completed the private signer migration with data/pairing preserved. Signing-keystore and independent credential recovery backups are confirmed complete. It remains unreleased until explicit publication approval.

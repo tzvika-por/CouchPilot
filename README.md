@@ -56,7 +56,11 @@ cd CouchPilot
 ./gradlew assembleRelease :app:lintRelease
 ```
 
-Debug APK: `app/build/outputs/apk/debug/app-debug.apk`. Release compilation produces an unsigned APK. There is no signed stable release yet; [signing and upgrade continuity](docs/RELEASE_SIGNING.md) must be resolved before distribution. Existing development installs retain `com.myremote.app`; the visible rename preserves pairing storage.
+Debug APK: `app/build/outputs/apk/debug/app-debug.apk`. Release compilation produces an unsigned APK. The 1.0.0 / code 3 release artifact is prepared through the private B-only signing process; it has not been publicly released. See [signing and upgrade continuity](docs/RELEASE_SIGNING.md). Existing development installs retain `com.myremote.app`; the visible rename preserves pairing storage.
+
+## Installing a public release
+
+No signed release is published yet. When one is available, download the release APK and checksum from [CouchPilot Releases](https://github.com/tzvika-por/CouchPilot/releases), verify the checksum, and open the APK on your Android phone. Android may ask you to allow installation from the browser or file manager you used. An AAB or source archive is not an installable APK. Existing development users should follow the [signing and upgrade plan](docs/RELEASE_SIGNING.md) before replacing their installation; do not uninstall to resolve a signature mismatch without understanding the loss of saved pairing data.
 
 ## Setup
 
@@ -64,6 +68,8 @@ Debug APK: `app/build/outputs/apk/debug/app-debug.apk`. Release compilation prod
 2. For LG wake, save its MAC address in LG setup and enable the TV's network wake setting. Previously persisted wake addresses are retained.
 3. Configure Xiaomi using LAN discovery/manual host plus TV pairing code. If your LAN path is blocked, supported phones can use Classic HID: reuse a saved Android bond, or explicitly configure the box's Bluetooth address and approve first pairing. No household address is built into the app.
 4. Pair Samsung through Android Bluetooth settings, grant nearby-device connection permission, and select the soundbar. Keep optical D.IN and close Samsung Audio Remote while CouchPilot owns the connection.
+
+Android 12+ asks for Nearby devices permission for Bluetooth connections; Android 13+ may ask for notification permission to display the ongoing connection notification. LAN control uses normal network permissions. CouchPilot does not request location, microphone, contacts or shared-storage access. Notifications provide connection status and a Stop action while the phone is used for other apps.
 
 Power names its target. Device management also offers explicit LG power, so a sleeping TV remains wakeable while Xiaomi is selected. Volume always controls Samsung. The foreground connection notification provides a stop action; stopping connections does not switch devices off.
 
@@ -79,7 +85,11 @@ No analytics, ads, telemetry, accounts or cloud command service. Keys stay in An
 
 Exact final counts and commands are recorded in [validation](docs/FINAL_VALIDATION.md). CI builds debug/unsigned release, runs JVM tests/lint and compiles instrumentation; the separate emulator workflow runs the UI/screenshot/native API suite. Emulators do not establish OEM interoperability.
 
-Wi-Fi isolation/filtering can prevent discovery or control even on apparently shared subnets. Wake depends on TV/CEC/optical settings. Unknown power/mute state is not inferred from a successful packet write. No standalone Xiaomi wake over a disconnected HID channel is claimed. LG WebSocket size checks occur after OkHttp assembles the message, leaving a malicious selected peer memory-exhaustion risk. This candidate remains pre-1.0 pending that availability hardening and distribution/signing decisions.
+Wi-Fi isolation/filtering can prevent discovery or control even on apparently shared subnets. Wake depends on TV/CEC/optical settings. Unknown power/mute state is not inferred from a successful packet write. No standalone Xiaomi wake over a disconnected HID channel is claimed.
+
+LG rejects text longer than 65,536 UTF-16 code units after OkHttp assembles the message; this is not a byte or total-memory cap. A malicious selected endpoint can cause memory pressure before that check. A trusted LAN and trusted TV reduce practical exposure, and an established certificate pin still rejects a mismatching peer before WebSocket traffic. This availability limitation remains accepted and [documented](docs/SECURITY.md#lg-websocket-message-memory), not eliminated. The 1.0.0 artifact is prepared. The signing keystore backup is hash-verified, and a separate recoverable credential backup exists. Public distribution still requires explicit publication approval.
+
+CouchPilot is an independent, unofficial project and is not affiliated with or endorsed by LG, Google, Xiaomi, Samsung or yes+. Product names and trademarks belong to their respective owners.
 
 ## Contributing and license
 
